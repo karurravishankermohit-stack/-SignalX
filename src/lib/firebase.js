@@ -3,6 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -17,7 +19,7 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-W7LSZ9XFG8"
 };
 
-// Initialize or reuse Firebase App instance
+// Initialize single consistent Firebase App instance
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
@@ -27,17 +29,68 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
+let _lastAuthError = null;
+
 /**
- * Initiates Google Sign-In with Firebase popup.
- * Returns the authenticated user and their Firebase ID token.
+ * Initiates Google Sign-In with Firebase popup, with optional redirect mode.
  */
-export async function signInWithGoogle() {
-  const result = await signInWithPopup(auth, googleProvider);
-  const idToken = await result.user.getIdToken(true);
-  return {
-    firebaseUser: result.user,
-    idToken
-  };
+export async function signInWithGoogle(useRedirect = false) {
+  _lastAuthError = null;
+  console.log(`[SignalX Auth] Starting Google Sign-In: origin=${window.location.origin}, authDomain=${firebaseConfig.authDomain}, mode=${useRedirect ? 'redirect' : 'popup'}`);
+
+  if (useRedirect) {
+    return signInWithRedirect(auth, googleProvider);
+  }
+
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const idToken = await result.user.getIdToken(true);
+    console.log(`[SignalX Auth] Google authentication successful: uid=${result.user.uid}, email=${result.user.email}`);
+    return {
+      firebaseUser: result.user,
+      idToken
+    };
+  } catch (err) {
+    _lastAuthError = {
+      code: err?.code || 'auth/unknown',
+      message: err?.message || 'Unknown error',
+      timestamp: new Date().toISOString()
+    };
+    console.error("[SignalX Auth] signInWithPopup failure:", {
+      code: err?.code,
+      message: err?.message,
+      origin: window.location.origin,
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId
+    });
+    throw err;
+  }
+}
+
+/**
+ * Checks for user credentials returned from a redirect flow.
+ */
+export async function handleRedirectResult() {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      console.log(`[SignalX Auth] Captured redirect sign-in result for: ${result.user.email}`);
+      const idToken = await result.user.getIdToken(true);
+      return {
+        firebaseUser: result.user,
+        idToken
+      };
+    }
+  } catch (err) {
+    _lastAuthError = {
+      code: err?.code || 'auth/redirect-error',
+      message: err?.message || 'Redirect error',
+      timestamp: new Date().toISOString()
+    };
+    console.error("[SignalX Auth] getRedirectResult failure:", err);
+    throw err;
+  }
+  return null;
 }
 
 /**
@@ -54,4 +107,35 @@ export function onAuthChange(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
+/**
+ * Safe diagnostic status reporter (zero secrets).
+ */
+export function getAuthDiagnostics() {
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const authorizedDomains = [
+    'localhost',
+    '127.0.0.1',
+    'signalx-c618c.firebaseapp.com',
+    'signalx-c618c.web.app',
+    'signal-x-ruddy.vercel.app'
+  ];
+
+  return {
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain,
+    appId: firebaseConfig.appId,
+    currentOrigin: typeof window !== 'undefined' ? window.location.origin : '',
+    currentHostname,
+    isDomainAuthorized: authorizedDomains.includes(currentHostname),
+    currentUser: auth.currentUser ? {
+      uid: auth.currentUser.uid,
+      email: auth.currentUser.email,
+      displayName: auth.currentUser.displayName
+    } : null,
+    providerId: 'google.com',
+    lastAuthError: _lastAuthError
+  };
+}
+
 export default auth;
+

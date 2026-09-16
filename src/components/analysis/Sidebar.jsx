@@ -27,7 +27,7 @@ import { logoutUser } from '../../lib/api';
 
 export default function Sidebar() {
   const navigate = useNavigate();
-  const { sessionId, currentUser, reset } = useSignalStore();
+  const { sessionId, currentUser, setCurrentUser, reset } = useSignalStore();
   const disabledClass = "opacity-40 cursor-not-allowed pointer-events-none";
 
   const links = [
@@ -60,6 +60,9 @@ export default function Sidebar() {
       localStorage.removeItem('signalx_user_session');
     } catch (e) {
       // ignore
+    }
+    if (setCurrentUser) {
+      setCurrentUser(null);
     }
     reset();
     navigate('/login');

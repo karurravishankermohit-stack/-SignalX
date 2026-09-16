@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GoogleLoginButton from '../components/common/GoogleLoginButton';
 import { localLogin } from '../lib/api';
+import { getAuthDiagnostics } from '../lib/firebase';
 import { useSignalStore } from '../store/useSignalStore';
-import { Activity, ShieldAlert, ShieldCheck, Terminal, ArrowLeft, Lock, ArrowRight, UserCheck } from 'lucide-react';
+import { Activity, ShieldAlert, ShieldCheck, Terminal, ArrowLeft, Lock, ArrowRight, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const setCurrentUser = useSignalStore(s => s.setCurrentUser);
   const [offlineLoading, setOfflineLoading] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const diagnostics = getAuthDiagnostics();
   
   const oauthError = searchParams.get('error');
 
@@ -176,6 +179,57 @@ export default function LoginPage() {
             <div className="pt-3 border-t border-[#1E2638] font-mono text-[11px] text-slate-500 space-y-0.5">
               <div className="text-slate-400 font-bold">AUTHORIZED NTRO CLEARANCE</div>
               <div>Strict session isolation enforced per analyst identity</div>
+            </div>
+
+            {/* Safe Auth Diagnostic Telemetry Panel */}
+            <div className="pt-2 border-t border-[#1E2638]">
+              <button
+                type="button"
+                onClick={() => setShowDiagnostics(!showDiagnostics)}
+                className="w-full flex items-center justify-between text-[10px] font-mono text-slate-400 hover:text-slate-200 transition-colors py-1 cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${diagnostics.isDomainAuthorized ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
+                  <span>AUTH TELEMETRY & DIAGNOSTICS</span>
+                </span>
+                {showDiagnostics ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+
+              {showDiagnostics && (
+                <div className="mt-2 p-3 bg-[#07090F] border border-[#1E2638] rounded-xs font-mono text-[10px] text-slate-400 space-y-1.5 select-text">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Firebase Project:</span>
+                    <span className="text-sky-400 font-semibold">{diagnostics.projectId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Auth Domain:</span>
+                    <span className="text-slate-300">{diagnostics.authDomain}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Origin:</span>
+                    <span className="text-slate-300">{diagnostics.currentOrigin || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Domain Auth:</span>
+                    <span className={`px-1.5 py-0.5 rounded-xs text-[9px] ${diagnostics.isDomainAuthorized ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' : 'bg-amber-950/60 text-amber-400 border border-amber-800/40'}`}>
+                      {diagnostics.isDomainAuthorized ? 'VERIFIED AUTHORIZED' : 'UNVERIFIED HOST'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Provider:</span>
+                    <span className="text-emerald-400">Google OAuth (google.com)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Session User:</span>
+                    <span className="text-slate-300 truncate max-w-[160px]">{diagnostics.currentUser ? diagnostics.currentUser.email : 'None (Ready)'}</span>
+                  </div>
+                  {diagnostics.lastAuthError && (
+                    <div className="pt-1.5 border-t border-[#1E2638] text-rose-400">
+                      <span className="text-rose-500 font-bold">Last Error:</span> {diagnostics.lastAuthError.code}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
