@@ -1,30 +1,39 @@
-const BASE = import.meta.env.VITE_BACKEND_URL !== undefined ? import.meta.env.VITE_BACKEND_URL : '';
+export function getBackendUrl() {
+  const envUrl = import.meta.env.VITE_BACKEND_URL;
+  if (envUrl !== undefined && envUrl !== null && envUrl !== '') {
+    return envUrl.replace(/\/+$/, '');
+  }
+  return '';
+}
+
+const BASE = getBackendUrl();
 
 export async function checkHealth() {
+  const endpoint = BASE ? `${BASE}/health` : '/health';
   try {
-    const res = await fetch(`${BASE}/health`, { method: 'GET', cache: 'no-cache' });
+    const res = await fetch(endpoint, { method: 'GET', cache: 'no-cache' });
     if (res.ok) {
       const data = await res.json();
       if (data?.status === 'ok') return true;
     }
   } catch (e) {
-    // fallback attempt below
-  }
-
-  // Fallback to explicit localhost:8000 if BASE was relative or different
-  if (BASE !== 'http://localhost:8000' && BASE !== 'http://127.0.0.1:8000') {
-    try {
-      const res2 = await fetch('http://localhost:8000/health', { method: 'GET', cache: 'no-cache' });
-      if (res2.ok) {
-        const data2 = await res2.json();
-        return data2?.status === 'ok';
+    // In local development only, attempt direct fallback if VITE_BACKEND_URL is not set
+    if (import.meta.env.DEV && !BASE) {
+      try {
+        const res2 = await fetch('http://localhost:8000/health', { method: 'GET', cache: 'no-cache' });
+        if (res2.ok) {
+          const data2 = await res2.json();
+          return data2?.status === 'ok';
+        }
+      } catch (err2) {
+        return false;
       }
-    } catch (e) {
-      return false;
     }
+    return false;
   }
   return false;
 }
+
 
 
 export async function uploadFile(file, iqConfig = {}) {

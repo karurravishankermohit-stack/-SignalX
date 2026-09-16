@@ -10,3 +10,8 @@ scikit-learn>=1.4.0
 reedsolo>=1.7.0
 pytest>=8.0.0
 httpx>=0.27.0
+firebase-admin>=6.5.0
+pyjwt>=2.8.0
+python-dotenv>=1.0.0
+cryptography>=42.0.0
+

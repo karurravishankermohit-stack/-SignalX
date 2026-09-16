@@ -13,3 +13,19 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Vercel Build Artifacts
+.vercel/
+
+# Local Databases & Artifacts
+*.db
+*.sqlite
+*.sqlite3
+backend/signalx.db
+signalx.db
+backend/sessions/
+backend/uploads/
+sessions/
+uploads/
+*.log
+

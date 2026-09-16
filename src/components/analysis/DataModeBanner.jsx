@@ -2,10 +2,14 @@ import React, { useState } from 'react';
 import { useSignalStore } from '../../store/useSignalStore';
 import { AlertTriangle, RefreshCw, Server, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
+import { getBackendUrl } from '../../lib/api';
+
 export default function DataModeBanner() {
   const { dataSource, caseId, filename, backendOnline, checkBackendStatus } = useSignalStore();
   const [retrying, setRetrying] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
+
+  const configuredBackend = getBackendUrl() || (typeof window !== 'undefined' ? `${window.location.origin}` : 'http://localhost:8000');
 
   const handleRetry = async () => {
     setRetrying(true);
@@ -25,7 +29,7 @@ export default function DataModeBanner() {
                 DSP ENGINE OFFLINE — Unable to reach the signal-processing service.
               </div>
               <div className="text-[11px] text-rose-300/80 font-sans">
-                Target Backend: <code className="bg-rose-900/60 px-1 py-0.5 rounded-xs font-mono">http://localhost:8000</code>
+                Target Backend: <code className="bg-rose-900/60 px-1 py-0.5 rounded-xs font-mono">{configuredBackend}</code>
               </div>
             </div>
           </div>
