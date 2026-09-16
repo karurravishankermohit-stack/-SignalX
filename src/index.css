@@ -1,0 +1,245 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #060913;
+    color: #E2E8F0;
+    font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #060913; }
+  ::-webkit-scrollbar-thumb { background: #1A2238; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #00F0FF; }
+}
+
+/* ─── ABYSS MESH GRADIENT ─────────────────────────────────────── */
+.bg-abyss-mesh {
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 85, 255, 0.12), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 85% 20%, rgba(0, 240, 255, 0.08), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 15% 85%, rgba(0, 85, 255, 0.06), transparent 50%),
+    linear-gradient(180deg, #070B16 0%, #03050B 100%);
+  background-attachment: fixed;
+}
+
+/* ─── GLASSMORPHISM UTILITIES ─────────────────────────────────── */
+.glass-card {
+  background: rgba(14, 20, 36, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card:hover {
+  border-color: rgba(0, 240, 255, 0.25);
+  background: rgba(18, 26, 46, 0.75);
+}
+
+.glass-panel {
+  background: rgba(10, 15, 28, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-header {
+  background: rgba(8, 12, 22, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-input {
+  background: rgba(6, 10, 20, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.glass-input:focus {
+  border-color: #00F0FF;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+}
+
+/* ─── ENGINEERING GRIDS ───────────────────────────────────────── */
+.bg-instrument-grid {
+  background-size: 24px 24px;
+  background-image:
+    linear-gradient(to right, rgba(30,38,56,0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30,38,56,0.35) 1px, transparent 1px);
+}
+.bg-instrument-grid-fine {
+  background-size: 12px 12px;
+  background-image:
+    linear-gradient(to right, rgba(30,38,56,0.2) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30,38,56,0.2) 1px, transparent 1px);
+}
+.bg-instrument-dots {
+  background-size: 20px 20px;
+  background-image: radial-gradient(rgba(0, 240, 255, 0.15) 1px, transparent 1px);
+}
+
+/* ─── TECH PANELS ─────────────────────────────────────────────── */
+.tech-panel { background-color: #0E121C; border: 1px solid #1E2638; }
+.tech-panel-subtle { background-color: #131826; border: 1px solid #1E2638; }
+.tech-border-b { border-bottom: 1px solid #1E2638; }
+.tech-border-t { border-top: 1px solid #1E2638; }
+.tech-border-r { border-right: 1px solid #1E2638; }
+.tech-border-l { border-left: 1px solid #1E2638; }
+
+/* ─── RADAR SWEEP ANIMATION ──────────────────────────────────── */
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.animate-radar-sweep {
+  animation: radar-sweep 2.4s linear infinite;
+  transform-origin: center;
+}
+
+
+/* ─── HERO ENTRANCE ANIMATION (Cinematic) ─────────────────────── */
+@keyframes hero-fade-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes hero-line-in {
+  from { transform: scaleX(0); transform-origin: left; }
+  to   { transform: scaleX(1); transform-origin: left; }
+}
+@keyframes signal-scan {
+  0%   { transform: translateX(-100%); opacity: 0.6; }
+  100% { transform: translateX(400%); opacity: 0; }
+}
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spectrum-bar {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1); }
+}
+@keyframes waveform-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes draw-line {
+  from { stroke-dashoffset: 1000; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+@keyframes sweep-horizontal {
+  from { left: 0; }
+  to   { left: 100%; }
+}
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* animation utilities */
+.anim-hero-in   { animation: hero-fade-in 0.7s ease both; }
+.anim-line-in   { animation: hero-line-in 0.6s ease both; }
+.anim-fade-up   { animation: fadeInUp 0.7s ease both; }
+.anim-fade-left { animation: fadeInLeft 0.6s ease both; }
+.anim-fade-right{ animation: fadeInRight 0.6s ease both; }
+.anim-blink     { animation: blink-cursor 1s step-start infinite; }
+.anim-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+/* Scroll reveal: hidden by default, revealed by IntersectionObserver */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal-on-scroll.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-on-scroll.delay-1 { transition-delay: 0.1s; }
+.reveal-on-scroll.delay-2 { transition-delay: 0.2s; }
+.reveal-on-scroll.delay-3 { transition-delay: 0.3s; }
+.reveal-on-scroll.delay-4 { transition-delay: 0.4s; }
+.reveal-on-scroll.delay-5 { transition-delay: 0.5s; }
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal-on-scroll {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ─── EDITORIAL TYPE UTILITIES ────────────────────────────────── */
+.editorial-heading {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+.editorial-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+.tech-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+}
+
+/* ─── SPECTRUM BARS ───────────────────────────────────────────── */
+.spectrum-bar {
+  transform-origin: bottom;
+  animation: spectrum-bar var(--dur, 1.2s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* ─── MARQUEE ─────────────────────────────────────────────────── */
+.marquee-track {
+  animation: marquee-left 30s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* ─── SIGNAL SWEEP LINE ───────────────────────────────────────── */
+.signal-sweep-line {
+  animation: sweep-horizontal 3s linear infinite;
+}
+
+/* ─── CONSTELLATION GLOW ──────────────────────────────────────── */
+.constellation-dot {
+  border-radius: 50%;
+  box-shadow: 0 0 4px currentColor;
+}
