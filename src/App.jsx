@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import { HomepageSelectionProvider } from './context/HomepageSelectionContext';
 import { onAuthChange, handleRedirectResult } from './lib/firebase';
-import { loginWithFirebase } from './lib/api';
+import { loginWithFirebase, getProtectedCaseStatus, getCurrentUserSession } from './lib/api';
 import { useSignalStore } from './store/useSignalStore';
 
 // Existing pages
@@ -41,88 +41,71 @@ export default function App() {
   const setCurrentUser = useSignalStore(s => s.setCurrentUser);
 
   useEffect(() => {
-    // 1. Process Google redirect sign-in result if returning from accounts.google.com
+    // 1. Check existing server-side HttpOnly session on page load/refresh
+    getCurrentUserSession()
+      .then((serverUser) => {
+        if (serverUser && serverUser.id) {
+          setCurrentUser(serverUser);
+        }
+      })
+      .catch(() => {
+        // No active session or unauthenticated; normal guest state
+      });
+
+    // 2. Process Google redirect sign-in result if returning from accounts.google.com
     handleRedirectResult()
       .then(async (result) => {
         if (result?.firebaseUser) {
-          const { firebaseUser, idToken } = result;
-          let user = null;
+          const { idToken } = result;
           try {
-            user = await loginWithFirebase(idToken);
+            const user = await loginWithFirebase(idToken);
+            if (user && user.id) {
+              await getProtectedCaseStatus();
+              setCurrentUser(user);
+              try {
+                localStorage.setItem('signalx_user_session', JSON.stringify({
+                  id: user.id,
+                  firebase_uid: user.firebase_uid,
+                  email: user.email,
+                  name: user.name,
+                  role: user.role,
+                  token: user.session_token,
+                  mode: user.mode
+                }));
+              } catch (_) {}
+            }
           } catch (e) {
-            console.warn('[SignalX Auth] Backend sync on redirect unavailable, establishing verified Firebase session');
+            console.error('[SignalX Auth] Backend verification on redirect failed:', e);
           }
-          if (!user) {
-            user = {
-              id: `usr_${firebaseUser.uid.substring(0, 12)}`,
-              firebase_uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Analyst',
-              photo_url: firebaseUser.photoURL || null,
-              role: 'RF Intelligence Analyst',
-              mode: 'firebase',
-              session_token: idToken,
-              clearance_level: 'SECRET // SIH-NTRO-2026',
-              created_at: new Date().toISOString()
-            };
-          }
-          setCurrentUser(user);
-          try {
-            localStorage.setItem('signalx_user_session', JSON.stringify({
-              id: user.id,
-              firebase_uid: user.firebase_uid,
-              email: user.email,
-              name: user.name,
-              role: user.role,
-              token: user.session_token,
-              mode: user.mode
-            }));
-          } catch (_) {}
         }
       })
       .catch((err) => {
         console.error('[SignalX Auth] Error processing redirect auth:', err);
       });
 
-    // 2. Auth state observer for session persistence across refreshes
+    // 3. Auth state observer for session persistence across refreshes
     const unsubscribe = onAuthChange(async (fbUser) => {
       if (fbUser) {
         try {
           const idToken = await fbUser.getIdToken();
-          let user = null;
-          try {
-            user = await loginWithFirebase(idToken);
-          } catch (err) {
-            // Backend offline/not deployed on Vercel
+          const user = await loginWithFirebase(idToken);
+          if (user && user.id) {
+            await getProtectedCaseStatus();
+            setCurrentUser(user);
+            try {
+              localStorage.setItem('signalx_user_session', JSON.stringify({
+                id: user.id,
+                firebase_uid: user.firebase_uid,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                token: user.session_token,
+                mode: user.mode
+              }));
+            } catch (_) {}
           }
-          if (!user) {
-            user = {
-              id: `usr_${fbUser.uid.substring(0, 12)}`,
-              firebase_uid: fbUser.uid,
-              email: fbUser.email,
-              name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Analyst',
-              photo_url: fbUser.photoURL || null,
-              role: 'RF Intelligence Analyst',
-              mode: 'firebase',
-              session_token: idToken,
-              clearance_level: 'SECRET // SIH-NTRO-2026',
-              created_at: new Date().toISOString()
-            };
-          }
-          setCurrentUser(user);
-          try {
-            localStorage.setItem('signalx_user_session', JSON.stringify({
-              id: user.id,
-              firebase_uid: user.firebase_uid,
-              email: user.email,
-              name: user.name,
-              role: user.role,
-              token: user.session_token,
-              mode: user.mode
-            }));
-          } catch (_) {}
         } catch (err) {
-          console.error('[SignalX Auth] Failed to restore Firebase session:', err);
+          console.warn('[SignalX Auth] Backend session sync notice:', err.message);
         }
       }
     });

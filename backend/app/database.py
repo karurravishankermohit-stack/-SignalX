@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 import numpy as np
@@ -58,8 +59,26 @@ def init_db():
         created_at TEXT,
         updated_at TEXT
     )""")
+
+    # Auth Sessions table for server-side verification and HttpOnly cookies
+    conn.execute("""CREATE TABLE IF NOT EXISTS auth_sessions (
+        session_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        firebase_uid TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_sessions_active ON auth_sessions(is_active, expires_at)")
+
     conn.commit()
     conn.close()
+
+# Auto-initialize tables on module import
+init_db()
 
 # ----------------- User Functions -----------------
 def create_or_update_user(user_id: str, email: str, name: str, profile_image: str = None, google_subject_id: str = None):
@@ -87,6 +106,82 @@ def get_user_by_id(user_id: str):
     row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
     conn.close()
     return dict(row) if row else None
+
+# ----------------- Auth Session Functions (Server-Side Session Store) -----------------
+def create_auth_session(user_id: str, email: str, firebase_uid: str = None, duration_days: int = 7) -> str:
+    """
+    Creates a secure, server-side authenticated session in SQLite.
+    Generates a cryptographically strong 256-bit token.
+    """
+    session_id = secrets.token_urlsafe(32)
+    now = datetime.utcnow()
+    expires_at = (now + timedelta(days=duration_days)).isoformat()
+    created_at = now.isoformat()
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO auth_sessions 
+           (session_id, user_id, email, firebase_uid, created_at, expires_at, is_active) 
+           VALUES (?, ?, ?, ?, ?, ?, 1)""",
+        (session_id, user_id, email, firebase_uid, created_at, expires_at)
+    )
+    conn.commit()
+    conn.close()
+    return session_id
+
+def get_auth_session(session_id: str):
+    """
+    Retrieves and validates an active server-side session.
+    Verifies that the session exists, is marked active, and has not expired.
+    """
+    if not session_id or not isinstance(session_id, str):
+        return None
+    now = datetime.utcnow().isoformat()
+    conn = get_db()
+    row = conn.execute(
+        """SELECT s.*, u.name, u.profile_image, u.google_subject_id 
+           FROM auth_sessions s
+           LEFT JOIN users u ON s.user_id = u.id
+           WHERE s.session_id = ? AND s.is_active = 1 AND s.expires_at > ?""",
+        (session_id, now)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def revoke_auth_session(session_id: str) -> bool:
+    """
+    Revokes an active session immediately on logout.
+    """
+    if not session_id:
+        return False
+    conn = get_db()
+    cursor = conn.execute("UPDATE auth_sessions SET is_active = 0 WHERE session_id = ?", (session_id,))
+    conn.commit()
+    revoked = cursor.rowcount > 0
+    conn.close()
+    return revoked
+
+def revoke_user_sessions(user_id: str) -> int:
+    """
+    Revokes all sessions belonging to a specific user.
+    """
+    if not user_id:
+        return 0
+    conn = get_db()
+    cursor = conn.execute("UPDATE auth_sessions SET is_active = 0 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    count = cursor.rowcount
+    conn.close()
+    return count
+
+def cleanup_expired_auth_sessions():
+    """
+    Prunes expired or revoked sessions from the store.
+    """
+    now = datetime.utcnow().isoformat()
+    conn = get_db()
+    conn.execute("DELETE FROM auth_sessions WHERE expires_at <= ? OR is_active = 0", (now,))
+    conn.commit()
+    conn.close()
 
 # ----------------- Session & Case Functions -----------------
 def create_session(session_id, case_id, filename, file_format, data_source='REAL_ANALYSIS', user_id='guest'):

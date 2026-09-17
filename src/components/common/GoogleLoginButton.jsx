@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Loader2, ArrowRight, RefreshCw } from 'lucide-react';
 import { signInWithGoogle } from '../../lib/firebase';
-import { loginWithFirebase, localLogin } from '../../lib/api';
+import { loginWithFirebase, localLogin, getProtectedCaseStatus } from '../../lib/api';
 import { useSignalStore } from '../../store/useSignalStore';
 
 export default function GoogleLoginButton({ 
@@ -38,32 +38,16 @@ export default function GoogleLoginButton({
         throw new Error('No Firebase user credentials returned from Google sign-in.');
       }
 
-      // Step 2: Attempt backend server-side session exchange
-      let user = null;
-      try {
-        user = await loginWithFirebase(idToken);
-      } catch (backendErr) {
-        console.warn(
-          '[SignalX Auth] Backend /api/auth/firebase unavailable or returned non-200. Establishing cryptographically verified Firebase user session directly:',
-          backendErr
-        );
+      // Step 2: Backend server-side token verification and secure HttpOnly session creation
+      // Token is sent to backend; backend validates signature, issuer, audience, exp, uid via Firebase Admin SDK
+      const user = await loginWithFirebase(idToken);
+      if (!user || !user.id) {
+        throw new Error('Backend failed to verify Firebase ID token or establish session.');
       }
 
-      // Step 3: If backend is unreachable or not hosted, establish verified analyst session directly
-      if (!user) {
-        user = {
-          id: `usr_${firebaseUser.uid.substring(0, 12)}`,
-          firebase_uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Analyst',
-          photo_url: firebaseUser.photoURL || null,
-          role: 'RF Intelligence Analyst',
-          mode: 'firebase',
-          session_token: idToken,
-          clearance_level: 'SECRET // SIH-NTRO-2026',
-          created_at: new Date().toISOString()
-        };
-      }
+      // Step 3: Validate that the secure HttpOnly session authorizes access to protected SIGINT APIs
+      const authVerification = await getProtectedCaseStatus();
+      console.log('[SignalX Auth] Backend session verification passed for:', authVerification.analyst || authVerification.email);
 
       // Step 4: Store in application state and local session storage
       setCurrentUser(user);

@@ -22,7 +22,7 @@ if (_project_root / ".env").is_file():
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .database import init_db, cleanup_old_sessions
+from .database import init_db, cleanup_old_sessions, cleanup_expired_auth_sessions
 from .routers import (
     upload, quality, spectrum, waterfall, parameters,
     modulation, demodulate, deinterleave, fec, correlate,
@@ -70,6 +70,7 @@ app.include_router(demo.router, prefix="/api", tags=["Demo"])
 async def startup():
     init_db()
     cleanup_old_sessions(hours=48)
+    cleanup_expired_auth_sessions()
     cfg = auth.get_oauth_config()
     logger.info(
         "SignalX Configuration Status: env_file=%s | google_oauth_configured=%s | client_id_present=%s | secret_present=%s | redirect_uri=%s | session_secret_present=%s",

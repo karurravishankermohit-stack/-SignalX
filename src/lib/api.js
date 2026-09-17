@@ -8,10 +8,44 @@ export function getBackendUrl() {
 
 const BASE = getBackendUrl();
 
+export function getStoredSessionToken() {
+  try {
+    const raw = localStorage.getItem('signalx_user_session');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed.token || parsed.session_token || null;
+    }
+  } catch (_) {}
+  return null;
+}
+
+/**
+ * Universal secure fetch wrapper:
+ * 1. Automatically transports HttpOnly cookies via credentials: 'include'
+ * 2. Attaches session Authorization Bearer header if present
+ * 3. Handles base URL routing
+ */
+export async function secureFetch(endpoint, options = {}) {
+  const url = endpoint.startsWith('http') ? endpoint : `${BASE}${endpoint}`;
+  const headers = {
+    ...(options.headers || {})
+  };
+  const token = getStoredSessionToken();
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return fetch(url, {
+    ...options,
+    headers,
+    credentials: 'include'
+  });
+}
+
 export async function checkHealth() {
   const endpoint = BASE ? `${BASE}/health` : '/health';
   try {
-    const res = await fetch(endpoint, { method: 'GET', cache: 'no-cache' });
+    const res = await fetch(endpoint, { method: 'GET', cache: 'no-cache', credentials: 'include' });
     if (res.ok) {
       const data = await res.json();
       if (data?.status === 'ok') return true;
@@ -20,7 +54,7 @@ export async function checkHealth() {
     // In local development only, attempt direct fallback if VITE_BACKEND_URL is not set
     if (import.meta.env.DEV && !BASE) {
       try {
-        const res2 = await fetch('http://localhost:8000/health', { method: 'GET', cache: 'no-cache' });
+        const res2 = await fetch('http://localhost:8000/health', { method: 'GET', cache: 'no-cache', credentials: 'include' });
         if (res2.ok) {
           const data2 = await res2.json();
           return data2?.status === 'ok';
@@ -233,7 +267,7 @@ export async function exchangeGoogleCode(code, redirectUri = null) {
 }
 
 export async function loginWithFirebase(idToken) {
-  const res = await fetch(`${BASE}/api/auth/firebase`, {
+  const res = await secureFetch('/api/auth/firebase', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -249,13 +283,13 @@ export async function loginWithFirebase(idToken) {
 }
 
 export async function getFirebaseStatus() {
-  const res = await fetch(`${BASE}/api/auth/firebase-status`);
+  const res = await secureFetch('/api/auth/firebase-status');
   if (!res.ok) throw new Error('Failed to query Firebase auth status');
   return res.json();
 }
 
 export async function localLogin(email = 'evaluator@signalx.local', name = 'Local Evaluator (Offline Demo Mode)') {
-  const res = await fetch(`${BASE}/api/auth/local`, {
+  const res = await secureFetch('/api/auth/local', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, name })
@@ -265,16 +299,25 @@ export async function localLogin(email = 'evaluator@signalx.local', name = 'Loca
 }
 
 export async function logoutUser() {
-  const res = await fetch(`${BASE}/api/auth/logout`, { method: 'POST' });
+  const res = await secureFetch('/api/auth/logout', { method: 'POST' });
   if (!res.ok) throw new Error('Logout failed');
   return res.json();
 }
 
-export async function getProtectedCaseStatus(userId) {
-  const res = await fetch(`${BASE}/api/auth/protected?user_id=${encodeURIComponent(userId || '')}`);
+export async function getProtectedCaseStatus() {
+  const res = await secureFetch('/api/auth/protected');
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Unauthorized' }));
     throw new Error(err.detail || 'Access denied');
+  }
+  return res.json();
+}
+
+export async function getCurrentUserSession() {
+  const res = await secureFetch('/api/auth/me');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Unauthorized' }));
+    throw new Error(err.detail || 'Session expired');
   }
   return res.json();
 }

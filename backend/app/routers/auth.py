@@ -10,10 +10,17 @@ import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Response, Request, Query
+from fastapi import APIRouter, HTTPException, Response, Request, Query, Depends, Cookie, Header
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from ..database import create_or_update_user, get_user_by_id
+from ..database import (
+    create_or_update_user, 
+    get_user_by_id, 
+    create_auth_session, 
+    get_auth_session, 
+    revoke_auth_session, 
+    revoke_user_sessions
+)
 
 from dotenv import load_dotenv
 import firebase_admin
@@ -103,8 +110,13 @@ def init_firebase_admin():
     global _firebase_initialized
     if not firebase_admin._apps:
         try:
+            cred_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
             cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY")
-            if cred_path and os.path.exists(cred_path):
+            if cred_json:
+                cred_dict = json.loads(cred_json)
+                cred = fb_creds.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred, {'projectId': FIREBASE_PROJECT_ID})
+            elif cred_path and os.path.exists(cred_path):
                 cred = fb_creds.Certificate(cred_path)
                 firebase_admin.initialize_app(cred, {'projectId': FIREBASE_PROJECT_ID})
             else:
@@ -133,42 +145,117 @@ def get_jwks_client():
 def verify_firebase_id_token(id_token: str) -> dict:
     """
     Cryptographically verifies a Firebase ID token issued by Google for signalx-c618c.
-    Validates signature via Google's live public JWKS, project audience, issuer,
-    and token expiration.
+    Validates:
+    1. Cryptographic RS256 signature against Google's public certificates
+    2. Token issuer is 'https://securetoken.google.com/{FIREBASE_PROJECT_ID}'
+    3. Token audience / project matches FIREBASE_PROJECT_ID
+    4. Token expiration (rejects expired tokens)
+    5. Non-empty subject / UID
     """
     if not id_token or not isinstance(id_token, str):
         raise HTTPException(status_code=400, detail="Missing or invalid Firebase ID token format.")
 
+    decoded = None
     # 1. Attempt Admin SDK verification if credentials present
     try:
         if firebase_admin._apps:
-            return fb_auth.verify_id_token(id_token, clock_skew_seconds=10)
+            decoded = fb_auth.verify_id_token(id_token, clock_skew_seconds=10)
     except Exception as e:
         logger.debug(f"Firebase Admin SDK fallback to Google JWKS: {e}")
 
     # 2. Authoritative cryptographic verification via Google's live public JWKS certificates
-    try:
-        jwks = get_jwks_client()
-        signing_key = jwks.get_signing_key_from_jwt(id_token)
-        expected_issuer = f"https://securetoken.google.com/{FIREBASE_PROJECT_ID}"
-        decoded = jwt.decode(
-            id_token,
-            signing_key.key,
-            algorithms=["RS256"],
-            audience=FIREBASE_PROJECT_ID,
-            issuer=expected_issuer,
-            options={"verify_exp": True}
+    if not decoded:
+        try:
+            jwks = get_jwks_client()
+            signing_key = jwks.get_signing_key_from_jwt(id_token)
+            expected_issuer = f"https://securetoken.google.com/{FIREBASE_PROJECT_ID}"
+            decoded = jwt.decode(
+                id_token,
+                signing_key.key,
+                algorithms=["RS256"],
+                audience=FIREBASE_PROJECT_ID,
+                issuer=expected_issuer,
+                options={"verify_exp": True}
+            )
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Firebase token has expired. Please sign in again.")
+        except jwt.InvalidIssuerError:
+            raise HTTPException(status_code=401, detail=f"Invalid token issuer. Expected {expected_issuer}.")
+        except jwt.InvalidAudienceError:
+            raise HTTPException(status_code=401, detail=f"Invalid token audience. Expected project {FIREBASE_PROJECT_ID}.")
+        except Exception as err:
+            logger.error(f"Firebase token verification failed: {err}")
+            raise HTTPException(status_code=401, detail=f"Firebase ID token verification failed: {str(err)}")
+
+    uid = decoded.get("uid") or decoded.get("sub") or decoded.get("user_id")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Firebase token missing subject ID (UID).")
+
+    return decoded
+
+
+def get_current_authenticated_user(
+    request: Request,
+    signalx_session: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
+) -> dict:
+    """
+    Authoritative server-side session dependency.
+    Validates either the HttpOnly 'signalx_session' cookie or 'Authorization: Bearer <token>'.
+    Verifies that the session is stored in SQLite, is marked active, and has not expired.
+    Rejects unauthenticated or tampered requests with HTTP 401.
+    """
+    session_id = None
+    if signalx_session:
+        session_id = signalx_session.strip()
+    elif authorization and authorization.startswith("Bearer "):
+        session_id = authorization[7:].strip()
+
+    if not session_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required: No active session. Please sign in with Google."
         )
-        return decoded
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Firebase token has expired. Please sign in again.")
-    except jwt.InvalidIssuerError:
-        raise HTTPException(status_code=401, detail=f"Invalid token issuer. Expected {expected_issuer}.")
-    except jwt.InvalidAudienceError:
-        raise HTTPException(status_code=401, detail=f"Invalid token audience. Expected project {FIREBASE_PROJECT_ID}.")
-    except Exception as err:
-        logger.error(f"Firebase token verification failed: {err}")
-        raise HTTPException(status_code=401, detail=f"Firebase ID token verification failed: {str(err)}")
+
+    session_record = get_auth_session(session_id)
+    if not session_record:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required: Invalid or expired analyst session."
+        )
+
+    user = get_user_by_id(session_record["user_id"])
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required: Analyst account not found."
+        )
+
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "profile_image": user.get("profile_image"),
+        "role": "Authenticated RF Analyst" if session_record.get("firebase_uid") != "offline-demo" else "Offline Evaluation Guest",
+        "mode": "FIREBASE_AUTHENTICATED" if session_record.get("firebase_uid") != "offline-demo" else "DEMO/OFFLINE EVALUATION MODE",
+        "google_subject_id": user.get("google_subject_id"),
+        "session_id": session_record["session_id"],
+        "session_expires_at": session_record["expires_at"]
+    }
+
+
+def get_optional_authenticated_user(
+    request: Request,
+    signalx_session: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
+) -> Optional[dict]:
+    """
+    Optional dependency for routes that allow both authenticated and guest access.
+    """
+    try:
+        return get_current_authenticated_user(request, signalx_session, authorization)
+    except HTTPException:
+        return None
 
 
 @router.get("/auth/firebase-status")
@@ -188,13 +275,21 @@ def get_firebase_status():
 
 
 @router.post("/auth/firebase")
-def firebase_auth_callback(request: Request, body: Optional[FirebaseLoginRequest] = None):
+def firebase_auth_callback(
+    request: Request,
+    response: Response,
+    body: Optional[FirebaseLoginRequest] = None
+):
     """
     Authenticates an analyst using a verified Google Firebase ID token.
     1. Extracts Bearer token or body id_token
-    2. Cryptographically verifies token against Google's public keys
-    3. Upserts user profile in database
-    4. Issues cryptographically signed session token
+    2. Cryptographically verifies token against Google's public keys / Admin SDK
+       (checks RS256 signature, issuer, audience=signalx-c618c, exp, uid)
+    3. Extracts verified identity strictly from token claims (never trusts browser)
+    4. Upserts user profile in database
+    5. Creates server-side session in auth_sessions table
+    6. Issues secure HttpOnly cookie 'signalx_session'
+    7. Returns user profile & session token
     """
     id_token = None
     auth_header = request.headers.get("Authorization", "")
@@ -233,10 +328,27 @@ def firebase_auth_callback(request: Request, body: Optional[FirebaseLoginRequest
         google_subject_id=f"firebase:{uid}"
     )
 
-    cfg = get_oauth_config()
-    timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-    sign_body = f"{user['id']}:{email}:{timestamp}".encode()
-    session_token = hmac.new(cfg["session_secret"].encode(), sign_body, hashlib.sha256).hexdigest()
+    # Create authoritative server-side session in SQLite
+    session_id = create_auth_session(
+        user_id=user["id"],
+        email=email,
+        firebase_uid=uid,
+        duration_days=7
+    )
+
+    # Set secure HttpOnly session cookie
+    is_secure = request.url.scheme == "https"
+    samesite_policy = "none" if is_secure else "lax"
+
+    response.set_cookie(
+        key="signalx_session",
+        value=session_id,
+        httponly=True,
+        secure=is_secure,
+        samesite=samesite_policy,
+        max_age=7 * 24 * 3600,
+        path="/"
+    )
 
     return {
         "id": user["id"],
@@ -248,7 +360,7 @@ def firebase_auth_callback(request: Request, body: Optional[FirebaseLoginRequest
         "role": "Authenticated RF Analyst",
         "mode": "FIREBASE_AUTHENTICATED",
         "auth_provider": "firebase_google",
-        "session_token": session_token,
+        "session_token": session_id,
         "last_login": user.get("last_login")
     }
 
@@ -506,10 +618,11 @@ def google_code_exchange(req: GoogleCodeExchangeRequest):
 
 
 @router.post("/auth/local")
-def local_login(req: LocalLoginRequest):
+def local_login(req: LocalLoginRequest, response: Response, request: Request):
     """
     Explicit Offline Demo Mode / Evaluator Access.
     Strictly distinguished from Google OAuth.
+    Issues an isolated local evaluator session.
     """
     u_email = req.email or "evaluator@signalx.local"
     if u_email == "evaluator@signalx.local":
@@ -527,58 +640,86 @@ def local_login(req: LocalLoginRequest):
     user['role'] = "Offline Evaluation Guest"
     user['mode'] = "DEMO/OFFLINE EVALUATION MODE"
     user['auth_provider'] = "offline_demo"
+
+    # Issue server-side session for evaluator
+    session_id = create_auth_session(
+        user_id=user["id"],
+        email=u_email,
+        firebase_uid="offline-demo",
+        duration_days=1
+    )
+    user['session_token'] = session_id
+
+    is_secure = request.url.scheme == "https"
+    response.set_cookie(
+        key="signalx_session",
+        value=session_id,
+        httponly=True,
+        secure=is_secure,
+        samesite="none" if is_secure else "lax",
+        max_age=24 * 3600,
+        path="/"
+    )
     return user
 
 
 @router.get("/auth/me")
-def get_current_user(user_id: str = Query("eval-guest-001")):
+def get_current_user(user: dict = Depends(get_current_authenticated_user)):
     """
     Fetches the profile for the active analyst session.
+    Validated directly against the server-side session store.
     """
-    u = get_user_by_id(user_id)
-    if not u:
-        return {
-            "id": "eval-guest-001",
-            "name": "Local Evaluator (Offline Demo Mode)",
-            "email": "evaluator@signalx.local",
-            "profile_image": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-            "role": "Offline Evaluation Guest",
-            "mode": "DEMO/OFFLINE EVALUATION MODE",
-            "auth_provider": "offline_demo"
-        }
-    return u
+    return user
 
 
 @router.post("/auth/logout")
-def logout():
+def logout(
+    response: Response,
+    request: Request,
+    signalx_session: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None)
+):
     """
     Terminates analyst session.
+    Revokes the server-side session record in SQLite and deletes the HttpOnly cookie.
     """
+    session_id = None
+    if signalx_session:
+        session_id = signalx_session.strip()
+    elif authorization and authorization.startswith("Bearer "):
+        session_id = authorization[7:].strip()
+
+    if session_id:
+        revoke_auth_session(session_id)
+
+    is_secure = request.url.scheme == "https"
+    response.delete_cookie(
+        key="signalx_session",
+        path="/",
+        secure=is_secure,
+        httponly=True,
+        samesite="none" if is_secure else "lax"
+    )
     return {"status": "logged_out", "message": "Analyst session closed."}
 
 
 @router.get("/auth/protected")
-def protected_case_access(user_id: str = Query(None)):
+def protected_case_access(user: dict = Depends(get_current_authenticated_user)):
     """
     Security barrier for protected SIGINT case repositories.
-    Denies unauthenticated requests.
+    Strictly validates the authenticated server session via HttpOnly cookie or Bearer token.
+    Denies all unauthenticated requests with HTTP 401.
     """
-    if not user_id or user_id in ("anonymous", "null", "none", ""):
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required: Access denied to protected SIGINT case repository."
-        )
-    user = get_user_by_id(user_id)
-    if not user and user_id != "eval-guest-001":
-        raise HTTPException(
-            status_code=403,
-            detail="Forbidden: Invalid or expired analyst credentials."
-        )
     return {
         "status": "authorized",
-        "user_id": user_id,
+        "user_id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
         "access": "granted",
         "clearance": "RESTRICTED-SIGINT",
-        "analyst": user.get('name') if user else "Local Evaluator",
-        "auth_provider": user.get('google_subject_id', 'offline_demo')
+        "role": user.get("role", "Authenticated RF Analyst"),
+        "mode": user.get("mode", "FIREBASE_AUTHENTICATED"),
+        "auth_provider": user.get("google_subject_id", "firebase_google"),
+        "authenticated_via": "server_session",
+        "session_expires_at": user.get("session_expires_at")
     }
