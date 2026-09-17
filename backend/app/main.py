@@ -84,6 +84,7 @@ async def startup():
     logger.info("SignalX Core DSP Engine initialized. SQLite connected. Cases table ready.")
 
 @app.get("/health")
+@app.get("/api/health")
 def health():
     return {
         "status": "ok",

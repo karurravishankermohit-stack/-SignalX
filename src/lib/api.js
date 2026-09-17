@@ -276,8 +276,22 @@ export async function loginWithFirebase(idToken) {
     body: JSON.stringify({ id_token: idToken })
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Firebase authentication failed' }));
-    throw new Error(err.detail || 'Firebase authentication failed');
+    let detail = '';
+    try {
+      const data = await res.json();
+      detail = data.detail || data.message || JSON.stringify(data);
+    } catch (_) {
+      try {
+        const text = await res.text();
+        detail = text ? text.slice(0, 200) : res.statusText;
+      } catch (__) {
+        detail = res.statusText;
+      }
+    }
+    const err = new Error(`Backend token exchange failed [HTTP ${res.status}]: ${detail || 'Unknown server response'}`);
+    err.status = res.status;
+    err.detail = detail;
+    throw err;
   }
   return res.json();
 }

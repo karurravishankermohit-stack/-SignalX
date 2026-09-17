@@ -36,10 +36,29 @@ let _lastAuthError = null;
  */
 export async function signInWithGoogle(useRedirect = false) {
   _lastAuthError = null;
-  console.log(`[SignalX Auth] Starting Google Sign-In: origin=${window.location.origin}, authDomain=${firebaseConfig.authDomain}, mode=${useRedirect ? 'redirect' : 'popup'}`);
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  console.log(`[SignalX Auth] Starting Google Sign-In: origin=${origin}, authDomain=${firebaseConfig.authDomain}, projectId=${firebaseConfig.projectId}, mode=${useRedirect ? 'redirect' : 'popup'}`);
 
   if (useRedirect) {
-    return signInWithRedirect(auth, googleProvider);
+    try {
+      return await signInWithRedirect(auth, googleProvider);
+    } catch (err) {
+      const diag = {
+        code: err?.code || 'auth/redirect-init-failed',
+        message: err?.message || 'Failed to initiate redirect sign-in',
+        name: err?.name || 'FirebaseError',
+        customData: err?.customData || null,
+        currentUser: auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : null,
+        origin,
+        projectId: firebaseConfig.projectId,
+        authDomain: firebaseConfig.authDomain,
+        timestamp: new Date().toISOString()
+      };
+      _lastAuthError = diag;
+      console.error("[SignalX Auth Diagnostics] signInWithRedirect initialization failure:", diag);
+      err.diagnostic = diag;
+      throw err;
+    }
   }
 
   try {
@@ -51,18 +70,20 @@ export async function signInWithGoogle(useRedirect = false) {
       idToken
     };
   } catch (err) {
-    _lastAuthError = {
+    const diag = {
       code: err?.code || 'auth/unknown',
-      message: err?.message || 'Unknown error',
+      message: err?.message || 'Unknown error during popup authentication',
+      name: err?.name || 'FirebaseError',
+      customData: err?.customData || null,
+      currentUser: auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : null,
+      origin,
+      projectId: firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain,
       timestamp: new Date().toISOString()
     };
-    console.error("[SignalX Auth] signInWithPopup failure:", {
-      code: err?.code,
-      message: err?.message,
-      origin: window.location.origin,
-      authDomain: firebaseConfig.authDomain,
-      projectId: firebaseConfig.projectId
-    });
+    _lastAuthError = diag;
+    console.error("[SignalX Auth Diagnostics] signInWithPopup failure:", diag);
+    err.diagnostic = diag;
     throw err;
   }
 }
@@ -82,12 +103,21 @@ export async function handleRedirectResult() {
       };
     }
   } catch (err) {
-    _lastAuthError = {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const diag = {
       code: err?.code || 'auth/redirect-error',
-      message: err?.message || 'Redirect error',
+      message: err?.message || 'Error processing redirect result',
+      name: err?.name || 'FirebaseError',
+      customData: err?.customData || null,
+      currentUser: auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : null,
+      origin,
+      projectId: firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain,
       timestamp: new Date().toISOString()
     };
-    console.error("[SignalX Auth] getRedirectResult failure:", err);
+    _lastAuthError = diag;
+    console.error("[SignalX Auth Diagnostics] getRedirectResult failure:", diag);
+    err.diagnostic = diag;
     throw err;
   }
   return null;

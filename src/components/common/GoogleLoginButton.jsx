@@ -16,12 +16,14 @@ export default function GoogleLoginButton({
   const [loading, setLoading] = useState(false);
   const [errorNotice, setErrorNotice] = useState(null);
   const [errorCode, setErrorCode] = useState(null);
+  const [diagnosticInfo, setDiagnosticInfo] = useState(null);
   const [canUseRedirect, setCanUseRedirect] = useState(false);
 
   const handleGoogleLogin = async (useRedirect = false) => {
     setLoading(true);
     setErrorNotice(null);
     setErrorCode(null);
+    setDiagnosticInfo(null);
     setCanUseRedirect(false);
 
     try {
@@ -68,8 +70,9 @@ export default function GoogleLoginButton({
       // Step 5: Navigate to workstation dashboard
       navigate('/dashboard');
     } catch (err) {
-      const code = err?.code || '';
+      const code = err?.code || (err?.status ? `HTTP_${err.status}` : '');
       const msg = err?.message || '';
+      const diag = err?.diagnostic || null;
 
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
         // User voluntarily closed popup; do not display error modal
@@ -77,6 +80,7 @@ export default function GoogleLoginButton({
       }
 
       setErrorCode(code);
+      setDiagnosticInfo(diag);
 
       if (code === 'auth/popup-blocked') {
         setCanUseRedirect(true);
@@ -187,6 +191,21 @@ export default function GoogleLoginButton({
             <p className="text-xs text-slate-300 mb-4 leading-relaxed font-sans">
               {errorNotice}
             </p>
+
+            {diagnosticInfo && (
+              <details className="mb-4 text-[11px] font-mono text-slate-400 bg-[#090D16] p-3 rounded-xs border border-[#1E2638]">
+                <summary className="cursor-pointer text-slate-400 hover:text-slate-200 select-none font-semibold mb-1">
+                  Technical Diagnostics ({diagnosticInfo.code || 'Diagnostic Info'})
+                </summary>
+                <div className="mt-2 space-y-1 overflow-x-auto text-[10px] text-slate-400">
+                  <div><span className="text-slate-500">Origin:</span> {diagnosticInfo.origin}</div>
+                  <div><span className="text-slate-500">Auth Domain:</span> {diagnosticInfo.authDomain}</div>
+                  <div><span className="text-slate-500">Project ID:</span> {diagnosticInfo.projectId}</div>
+                  <div><span className="text-slate-500">Error Name:</span> {diagnosticInfo.name}</div>
+                  <div><span className="text-slate-500">Message:</span> {diagnosticInfo.message}</div>
+                </div>
+              </details>
+            )}
 
             {canUseRedirect && (
               <div className="bg-[#131826] p-3 rounded-xs border border-sky-900/40 text-xs text-slate-300 mb-4 font-sans space-y-2">

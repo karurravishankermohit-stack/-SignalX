@@ -6,9 +6,21 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import numpy as np
 
-DB_PATH = Path(__file__).parent.parent / "signalx.db"
-SESSIONS_DIR = Path(__file__).parent.parent / "sessions"
-UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
+import tempfile
+
+IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+if IS_SERVERLESS:
+    BASE_DATA_DIR = Path(tempfile.gettempdir()) / "signalx_data"
+    DB_PATH = BASE_DATA_DIR / "signalx.db"
+    SESSIONS_DIR = BASE_DATA_DIR / "sessions"
+    UPLOADS_DIR = BASE_DATA_DIR / "uploads"
+else:
+    DB_PATH = Path(__file__).parent.parent / "signalx.db"
+    SESSIONS_DIR = Path(__file__).parent.parent / "sessions"
+    UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
+
+DB_PATH.parent.mkdir(exist_ok=True, parents=True)
 SESSIONS_DIR.mkdir(exist_ok=True, parents=True)
 UPLOADS_DIR.mkdir(exist_ok=True, parents=True)
 
