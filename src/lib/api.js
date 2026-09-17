@@ -44,15 +44,41 @@ export function getStoredSessionToken() {
 }
 
 /**
- * Universal API fetch wrapper:
- * 1. Resolves dynamic backend URL (Production FastAPI vs Dev localhost)
- * 2. Automatically bypasses tunnel warnings (ngrok-skip-browser-warning)
- * 3. Transports HttpOnly session cookies via credentials: 'include'
- * 4. Attaches session Authorization Bearer header if present
+ * Same-Origin Auth Fetch:
+ * Always executes on the primary website origin to guarantee 100% reliable
+ * session cookie issuance, zero cross-origin CORS/preflight latency, and
+ * uninterrupted authentication availability.
  */
-export async function apiFetch(endpoint, options = {}) {
+export async function authFetch(endpoint, options = {}) {
+  const isDev = import.meta.env.DEV;
+  const base = isDev ? getBackendUrl() : '';
+  const url = endpoint.startsWith('http') ? endpoint : `${base}${endpoint}`;
+
+  const headers = {
+    'ngrok-skip-browser-warning': 'true',
+    ...(options.headers || {})
+  };
+  const token = getStoredSessionToken();
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return fetch(url, {
+    ...options,
+    headers,
+    credentials: 'include'
+  });
+}
+
+/**
+ * DSP Engine Fetch:
+ * Dispatches signal processing requests (FFT, demodulation, AMC, FEC, uploads)
+ * directly to the real Python FastAPI DSP backend.
+ */
+export async function dspFetch(endpoint, options = {}) {
   const base = getBackendUrl();
   const url = endpoint.startsWith('http') ? endpoint : `${base}${endpoint}`;
+
   const headers = {
     'ngrok-skip-browser-warning': 'true',
     ...(options.headers || {})
@@ -70,7 +96,14 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 export async function secureFetch(endpoint, options = {}) {
-  return apiFetch(endpoint, options);
+  if (endpoint.includes('/api/auth/')) {
+    return authFetch(endpoint, options);
+  }
+  return dspFetch(endpoint, options);
+}
+
+export async function apiFetch(endpoint, options = {}) {
+  return secureFetch(endpoint, options);
 }
 
 /**
@@ -79,12 +112,12 @@ export async function secureFetch(endpoint, options = {}) {
  */
 export async function checkHealth() {
   const base = getBackendUrl();
+  if (!base) return false;
   const endpoint = `${base}/api/health`;
   try {
     const res = await fetch(endpoint, {
       method: 'GET',
       cache: 'no-cache',
-      credentials: 'include',
       headers: {
         'ngrok-skip-browser-warning': 'true',
         'Accept': 'application/json'
@@ -109,7 +142,7 @@ export async function uploadFile(file, iqConfig = {}) {
   if (iqConfig && Object.keys(iqConfig).length > 0) {
     formData.append('config', JSON.stringify(iqConfig));
   }
-  const res = await apiFetch('/api/upload', { method: 'POST', body: formData });
+  const res = await dspFetch('/api/upload', { method: 'POST', body: formData });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
     throw new Error(err.detail || 'Upload failed');
@@ -119,67 +152,84 @@ export async function uploadFile(file, iqConfig = {}) {
 
 export async function getCases(userId = null) {
   const url = userId ? `/api/cases?user_id=${encodeURIComponent(userId)}` : '/api/cases';
-  const res = await apiFetch(url);
-  if (!res.ok) throw new Error('Failed to fetch cases');
-  return res.json();
+  try {
+    const res = await dspFetch(url);
+    if (res.ok) return await res.json();
+  } catch (_) {}
+  // Fallback to same-origin cases repository if DSP backend is initializing
+  const resFallback = await authFetch(url);
+  if (!resFallback.ok) throw new Error('Failed to fetch cases');
+  return resFallback.json();
 }
 
 export async function getCaseById(caseId) {
-  const res = await apiFetch(`/api/cases/${encodeURIComponent(caseId)}`);
-  if (!res.ok) throw new Error(`Failed to fetch case ${caseId}`);
-  return res.json();
+  try {
+    const res = await dspFetch(`/api/cases/${encodeURIComponent(caseId)}`);
+    if (res.ok) return await res.json();
+  } catch (_) {}
+  const resFallback = await authFetch(`/api/cases/${encodeURIComponent(caseId)}`);
+  if (!resFallback.ok) throw new Error(`Failed to fetch case ${caseId}`);
+  return resFallback.json();
 }
 
 export async function deleteCase(caseId) {
-  const res = await apiFetch(`/api/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Failed to delete case ${caseId}`);
-  return res.json();
+  try {
+    const res = await dspFetch(`/api/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' });
+    if (res.ok) return await res.json();
+  } catch (_) {}
+  const resFallback = await authFetch(`/api/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' });
+  if (!resFallback.ok) throw new Error(`Failed to delete case ${caseId}`);
+  return resFallback.json();
 }
 
 export async function getDashboardStats() {
-  const res = await apiFetch('/api/dashboard/stats');
-  if (!res.ok) throw new Error('Failed to fetch dashboard stats');
-  return res.json();
+  try {
+    const res = await dspFetch('/api/dashboard/stats');
+    if (res.ok) return await res.json();
+  } catch (_) {}
+  const resFallback = await authFetch('/api/dashboard/stats');
+  if (!resFallback.ok) throw new Error('Failed to fetch dashboard stats');
+  return resFallback.json();
 }
 
 export async function getQuality(sessionId) {
-  const res = await apiFetch(`/api/analyze/quality/${sessionId}`);
+  const res = await dspFetch(`/api/analyze/quality/${sessionId}`);
   if (!res.ok) throw new Error('Failed to fetch quality');
   return res.json();
 }
 
 export async function getSpectrum(sessionId, window = 'hann', nfft = 2048) {
-  const res = await apiFetch(`/api/analyze/spectrum/${sessionId}?window=${window}&nfft=${nfft}`);
+  const res = await dspFetch(`/api/analyze/spectrum/${sessionId}?window=${window}&nfft=${nfft}`);
   if (!res.ok) throw new Error('Failed to fetch spectrum');
   return res.json();
 }
 
 export async function getWaterfall(sessionId, nperseg = 256) {
-  const res = await apiFetch(`/api/analyze/waterfall/${sessionId}?nperseg=${nperseg}`);
+  const res = await dspFetch(`/api/analyze/waterfall/${sessionId}?nperseg=${nperseg}`);
   if (!res.ok) throw new Error('Failed to fetch waterfall');
   return res.json();
 }
 
 export async function getParameters(sessionId) {
-  const res = await apiFetch(`/api/analyze/parameters/${sessionId}`);
+  const res = await dspFetch(`/api/analyze/parameters/${sessionId}`);
   if (!res.ok) throw new Error('Failed to fetch parameters');
   return res.json();
 }
 
 export async function getConstellation(sessionId) {
-  const res = await apiFetch(`/api/analyze/constellation/${sessionId}`);
+  const res = await dspFetch(`/api/analyze/constellation/${sessionId}`);
   if (!res.ok) throw new Error('Failed to fetch constellation');
   return res.json();
 }
 
 export async function classifyModulation(sessionId) {
-  const res = await apiFetch(`/api/classify/modulation/${sessionId}`, { method: 'POST' });
+  const res = await dspFetch(`/api/classify/modulation/${sessionId}`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to classify modulation');
   return res.json();
 }
 
 export async function demodulate(sessionId, params) {
-  const res = await apiFetch('/api/demodulate', {
+  const res = await dspFetch('/api/demodulate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, ...params })
@@ -192,13 +242,13 @@ export async function demodulate(sessionId, params) {
 }
 
 export async function getBitstream(sessionId) {
-  const res = await apiFetch(`/api/bitstream/${sessionId}`);
+  const res = await dspFetch(`/api/bitstream/${sessionId}`);
   if (!res.ok) throw new Error('Failed to fetch bitstream');
   return res.json();
 }
 
 export async function detectInterleaving(sessionId) {
-  const res = await apiFetch('/api/detect/interleaving', {
+  const res = await dspFetch('/api/detect/interleaving', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId })
@@ -211,7 +261,7 @@ export async function detectInterleaving(sessionId) {
 }
 
 export async function deinterleave(sessionId, method, params = {}) {
-  const res = await apiFetch('/api/deinterleave', {
+  const res = await dspFetch('/api/deinterleave', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, method, params })
@@ -221,7 +271,7 @@ export async function deinterleave(sessionId, method, params = {}) {
 }
 
 export async function detectFec(sessionId) {
-  const res = await apiFetch('/api/detect/fec', {
+  const res = await dspFetch('/api/detect/fec', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId })
@@ -234,7 +284,7 @@ export async function detectFec(sessionId) {
 }
 
 export async function fecDecode(sessionId, fecType, params = {}) {
-  const res = await apiFetch('/api/fec-decode', {
+  const res = await dspFetch('/api/fec-decode', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, fec_type: fecType, params })
@@ -244,7 +294,7 @@ export async function fecDecode(sessionId, fecType, params = {}) {
 }
 
 export async function correlate(bitsA, bitsB = null, syncPattern = null, sessionId = null) {
-  const res = await apiFetch('/api/correlate', {
+  const res = await dspFetch('/api/correlate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bits_a: bitsA, bits_b: bitsB, sync_pattern: syncPattern, session_id: sessionId })
@@ -254,7 +304,7 @@ export async function correlate(bitsA, bitsB = null, syncPattern = null, session
 }
 
 export async function getReport(sessionId) {
-  const res = await apiFetch(`/api/report/${sessionId}`);
+  const res = await dspFetch(`/api/report/${sessionId}`);
   if (!res.ok) throw new Error('Failed to fetch report');
   return res.json();
 }
@@ -262,7 +312,7 @@ export async function getReport(sessionId) {
 export async function loadDemo(signalType, userId = null) {
   const payload = { signal_type: signalType };
   if (userId) payload.user_id = userId;
-  const res = await apiFetch('/api/demo/load', {
+  const res = await dspFetch('/api/demo/load', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -272,13 +322,13 @@ export async function loadDemo(signalType, userId = null) {
 }
 
 export async function getAuthDiagnostic() {
-  const res = await apiFetch('/api/auth/diagnostic');
+  const res = await authFetch('/api/auth/diagnostic');
   if (!res.ok) throw new Error('Failed to query authentication diagnostic');
   return res.json();
 }
 
 export async function getGoogleAuthUrl() {
-  const res = await apiFetch('/api/auth/google/url');
+  const res = await authFetch('/api/auth/google/url');
   if (!res.ok) throw new Error('Failed to query Google OAuth configuration');
   return res.json();
 }
@@ -286,7 +336,7 @@ export async function getGoogleAuthUrl() {
 export async function exchangeGoogleCode(code, redirectUri = null) {
   const payload = { code };
   if (redirectUri) payload.redirect_uri = redirectUri;
-  const res = await apiFetch('/api/auth/google/callback', {
+  const res = await authFetch('/api/auth/google/callback', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -299,7 +349,7 @@ export async function exchangeGoogleCode(code, redirectUri = null) {
 }
 
 export async function loginWithFirebase(idToken) {
-  const res = await apiFetch('/api/auth/firebase', {
+  const res = await authFetch('/api/auth/firebase', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -329,13 +379,13 @@ export async function loginWithFirebase(idToken) {
 }
 
 export async function getFirebaseStatus() {
-  const res = await apiFetch('/api/auth/firebase-status');
+  const res = await authFetch('/api/auth/firebase-status');
   if (!res.ok) throw new Error('Failed to query Firebase auth status');
   return res.json();
 }
 
 export async function localLogin(email = 'evaluator@signalx.local', name = 'Local Evaluator (Offline Demo Mode)') {
-  const res = await apiFetch('/api/auth/local', {
+  const res = await authFetch('/api/auth/local', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, name })
@@ -345,13 +395,13 @@ export async function localLogin(email = 'evaluator@signalx.local', name = 'Loca
 }
 
 export async function logoutUser() {
-  const res = await apiFetch('/api/auth/logout', { method: 'POST' });
+  const res = await authFetch('/api/auth/logout', { method: 'POST' });
   if (!res.ok) throw new Error('Logout failed');
   return res.json();
 }
 
 export async function getProtectedCaseStatus() {
-  const res = await apiFetch('/api/auth/protected');
+  const res = await authFetch('/api/auth/protected');
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Unauthorized' }));
     throw new Error(err.detail || 'Access denied');
@@ -360,7 +410,7 @@ export async function getProtectedCaseStatus() {
 }
 
 export async function getCurrentUserSession() {
-  const res = await apiFetch('/api/auth/me');
+  const res = await authFetch('/api/auth/me');
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Unauthorized' }));
     throw new Error(err.detail || 'Session expired');
