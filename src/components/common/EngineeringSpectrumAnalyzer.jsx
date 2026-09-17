@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { useSignalStore } from '../../store/useSignalStore';
 
 export default function EngineeringSpectrumAnalyzer({ 
   height = 290,
@@ -10,6 +11,7 @@ export default function EngineeringSpectrumAnalyzer({
   className = ''
 }) {
   const canvasRef = useRef(null);
+  const { dataSource, backendOnline } = useSignalStore();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -228,9 +230,27 @@ export default function EngineeringSpectrumAnalyzer({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-1.5 py-0.5 rounded-xs bg-[#1A1813] text-[#F59E0B] border border-[#3E2F13] text-[10px] font-semibold">
-            SYNTHETIC PREVIEW
-          </span>
+          {!backendOnline ? (
+            <span className="px-1.5 py-0.5 rounded-xs bg-rose-950/80 text-rose-300 border border-rose-700/60 text-[10px] font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+              BACKEND UNAVAILABLE
+            </span>
+          ) : dataSource === 'REAL_ANALYSIS' ? (
+            <span className="px-1.5 py-0.5 rounded-xs bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              LIVE BACKEND
+            </span>
+          ) : dataSource === 'DEMO_DATA' ? (
+            <span className="px-1.5 py-0.5 rounded-xs bg-[#1A1813] text-[#F59E0B] border border-[#3E2F13] text-[10px] font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              DEMO / SYNTHETIC
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 rounded-xs bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 text-[10px] font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+              STANDBY SCANNER
+            </span>
+          )}
         </div>
       </div>
 

@@ -34,11 +34,16 @@ app = FastAPI(
     description="Scientific DSP Backend for SIH 2026 / SIH26147 (NTRO)"
 )
 
-# CORS configuration - Allow local and remote frontend origins
+# CORS configuration - Explicit origins (no wildcard in production with credentials)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_origin_regex=r"https?://.*",
+    allow_origins=[
+        "https://signal-x-ruddy.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,8 +100,9 @@ def health():
     return {
         "status": "ok",
         "service": "signalx-dsp",
-        "dsp_engine": "available",
         "version": "1.0.0",
+        "dsp": True,
+        "dsp_engine": "available",
         "platform": "SignalX NTRO SIH26147"
     }
 
