@@ -6,7 +6,10 @@ export default function handler(req, res) {
     firebase_configured: true,
     project_id: FIREBASE_PROJECT_ID,
     auth_domain: `${FIREBASE_PROJECT_ID}.firebaseapp.com`,
+    expected_issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
+    expected_audience: FIREBASE_PROJECT_ID,
     service_account_secret_exposed: false,
-    tokeninfo_endpoint: 'https://oauth2.googleapis.com/tokeninfo'
+    jwks_endpoint: 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com',
+    verification_method: 'Google Live Public JWKS Cryptographic RS256 Verification'
   });
 }

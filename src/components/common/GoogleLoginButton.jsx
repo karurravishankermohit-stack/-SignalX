@@ -18,6 +18,7 @@ export default function GoogleLoginButton({
   const [errorCode, setErrorCode] = useState(null);
   const [diagnosticInfo, setDiagnosticInfo] = useState(null);
   const [canUseRedirect, setCanUseRedirect] = useState(false);
+  const [authPhaseStatus, setAuthPhaseStatus] = useState(null);
 
   const handleGoogleLogin = async (useRedirect = false) => {
     setLoading(true);
@@ -25,6 +26,9 @@ export default function GoogleLoginButton({
     setErrorCode(null);
     setDiagnosticInfo(null);
     setCanUseRedirect(false);
+    setAuthPhaseStatus(null);
+
+    let activeFirebaseUser = null;
 
     try {
       // Step 1: Firebase Google Authentication (Popup or Redirect)
@@ -39,11 +43,28 @@ export default function GoogleLoginButton({
       if (!idToken || !firebaseUser) {
         throw new Error('No Firebase user credentials returned from Google sign-in.');
       }
+      activeFirebaseUser = firebaseUser;
 
       // Step 2: Backend server-side token verification and secure HttpOnly session creation
-      // Token is sent to backend; backend validates signature, issuer, audience, exp, uid via Firebase Admin SDK
-      const user = await loginWithFirebase(idToken);
+      // Token is sent to backend; backend validates signature, issuer, audience, exp, uid via Google live JWKS / Firebase Admin
+      let user;
+      try {
+        user = await loginWithFirebase(idToken);
+      } catch (backendErr) {
+        setAuthPhaseStatus({
+          firebaseGoogle: 'SUCCESS',
+          firebaseEmail: firebaseUser.email || firebaseUser.uid,
+          backendVerification: 'FAILED'
+        });
+        throw backendErr;
+      }
+
       if (!user || !user.id) {
+        setAuthPhaseStatus({
+          firebaseGoogle: 'SUCCESS',
+          firebaseEmail: firebaseUser.email || firebaseUser.uid,
+          backendVerification: 'FAILED'
+        });
         throw new Error('Backend failed to verify Firebase ID token or establish session.');
       }
 
@@ -82,6 +103,14 @@ export default function GoogleLoginButton({
       setErrorCode(code);
       setDiagnosticInfo(diag);
 
+      if (!activeFirebaseUser) {
+        setAuthPhaseStatus({
+          firebaseGoogle: 'FAILED',
+          firebaseEmail: null,
+          backendVerification: 'NOT_ATTEMPTED'
+        });
+      }
+
       if (code === 'auth/popup-blocked') {
         setCanUseRedirect(true);
         setErrorNotice(
@@ -106,7 +135,7 @@ export default function GoogleLoginButton({
       }
 
       setCanUseRedirect(true);
-      setErrorNotice(msg || 'Google Authentication failed. Please try again or use direct redirect.');
+      setErrorNotice(msg || 'Authentication failed. Please try again or use direct redirect.');
     } finally {
       setLoading(false);
     }
@@ -179,7 +208,11 @@ export default function GoogleLoginButton({
             <div className="flex items-center justify-between border-b border-[#1E2638] pb-3 mb-3">
               <div className="flex items-center gap-2.5 text-rose-400 font-mono text-xs font-bold uppercase tracking-wider">
                 <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>Authentication Notice</span>
+                <span>
+                  {authPhaseStatus?.backendVerification === 'FAILED' 
+                    ? 'Backend Session Verification Notice' 
+                    : 'Authentication Notice'}
+                </span>
               </div>
               {errorCode && (
                 <span className="font-mono text-[10px] text-rose-300/80 px-2 py-0.5 bg-rose-950/50 border border-rose-800/40 rounded-xs">
@@ -187,6 +220,33 @@ export default function GoogleLoginButton({
                 </span>
               )}
             </div>
+
+            {/* Distinct Phase Indicators */}
+            {authPhaseStatus && (
+              <div className="mb-4 space-y-1.5 font-mono text-[11px] bg-[#0A0D15] p-3 rounded-xs border border-[#1E2638]">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Firebase Google Auth:</span>
+                  <span className={`font-bold px-2 py-0.5 rounded-xs ${
+                    authPhaseStatus.firebaseGoogle === 'SUCCESS' 
+                      ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' 
+                      : 'bg-rose-950/60 text-rose-400 border border-rose-800/40'
+                  }`}>
+                    {authPhaseStatus.firebaseGoogle}
+                    {authPhaseStatus.firebaseEmail ? ` (${authPhaseStatus.firebaseEmail})` : ''}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Backend Session Verification:</span>
+                  <span className={`font-bold px-2 py-0.5 rounded-xs ${
+                    authPhaseStatus.backendVerification === 'FAILED' 
+                      ? 'bg-rose-950/60 text-rose-400 border border-rose-800/40' 
+                      : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {authPhaseStatus.backendVerification}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <p className="text-xs text-slate-300 mb-4 leading-relaxed font-sans">
               {errorNotice}
