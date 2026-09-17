@@ -23,11 +23,7 @@ if (_project_root / ".env").is_file():
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import init_db, cleanup_old_sessions, cleanup_expired_auth_sessions
-from .routers import (
-    upload, quality, spectrum, waterfall, parameters,
-    modulation, demodulate, deinterleave, fec, correlate,
-    report, demo, cases, auth
-)
+from .routers import auth, cases
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger("signalx")
@@ -48,23 +44,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Core Routers
 app.include_router(auth.router, tags=["Authentication"])
 app.include_router(auth.router, prefix="/api", tags=["Authentication API"])
 app.include_router(cases.router, prefix="/api", tags=["Cases"])
-app.include_router(upload.router, prefix="/api", tags=["Upload"])
-app.include_router(quality.router, prefix="/api", tags=["Quality"])
-app.include_router(spectrum.router, prefix="/api", tags=["Spectrum"])
-app.include_router(waterfall.router, prefix="/api", tags=["Waterfall"])
-app.include_router(parameters.router, prefix="/api", tags=["Parameters"])
-app.include_router(modulation.router, prefix="/api", tags=["Modulation"])
-app.include_router(demodulate.router, prefix="/api", tags=["Demodulation"])
-app.include_router(deinterleave.router, prefix="/api", tags=["Deinterleaving"])
-app.include_router(fec.router, prefix="/api", tags=["FEC"])
-app.include_router(correlate.router, prefix="/api", tags=["Correlation"])
-app.include_router(report.router, prefix="/api", tags=["Report"])
-app.include_router(demo.router, prefix="/api", tags=["Demo"])
+
+# Scientific DSP Routers (active when scientific libraries like scipy/sklearn are installed)
+try:
+    from .routers import (
+        upload, quality, spectrum, waterfall, parameters,
+        modulation, demodulate, deinterleave, fec, correlate,
+        report, demo
+    )
+    app.include_router(upload.router, prefix="/api", tags=["Upload"])
+    app.include_router(quality.router, prefix="/api", tags=["Quality"])
+    app.include_router(spectrum.router, prefix="/api", tags=["Spectrum"])
+    app.include_router(waterfall.router, prefix="/api", tags=["Waterfall"])
+    app.include_router(parameters.router, prefix="/api", tags=["Parameters"])
+    app.include_router(modulation.router, prefix="/api", tags=["Modulation"])
+    app.include_router(demodulate.router, prefix="/api", tags=["Demodulation"])
+    app.include_router(deinterleave.router, prefix="/api", tags=["Deinterleaving"])
+    app.include_router(fec.router, prefix="/api", tags=["FEC"])
+    app.include_router(correlate.router, prefix="/api", tags=["Correlation"])
+    app.include_router(report.router, prefix="/api", tags=["Report"])
+    app.include_router(demo.router, prefix="/api", tags=["Demo"])
+    logger.info("SignalX DSP Routers loaded successfully.")
+except ImportError as dsp_err:
+    logger.info(f"SignalX running in lightweight serverless mode: {dsp_err}")
 
 @app.on_event("startup")
 async def startup():
