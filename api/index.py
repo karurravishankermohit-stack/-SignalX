@@ -1,14 +1,20 @@
-﻿import sys
+import sys
+import os
 from pathlib import Path
 
-# Add backend directory to sys.path so app and its packages can be imported
 current_dir = Path(__file__).resolve().parent
-backend_dir = current_dir.parent / 'backend'
+candidates = [
+    current_dir.parent / "backend",
+    current_dir / "backend",
+    Path(os.getcwd()) / "backend",
+    current_dir.parent,
+    current_dir
+]
 
-if str(backend_dir) not in sys.path:
-    sys.path.insert(0, str(backend_dir))
-if str(current_dir.parent) not in sys.path:
-    sys.path.insert(0, str(current_dir.parent))
+for c in candidates:
+    s = str(c)
+    if c.is_dir() and s not in sys.path:
+        sys.path.insert(0, s)
 
 from app.main import app
 
