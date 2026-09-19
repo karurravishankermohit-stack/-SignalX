@@ -4,7 +4,7 @@ import { AlertTriangle, RefreshCw, Server, ShieldCheck, CheckCircle2, Activity, 
 import { getBackendUrl, setCustomBackendUrl, measureBackendDiagnostics } from '../../lib/api';
 
 export default function DataModeBanner() {
-  const { dataSource, caseId, sessionId, filename, backendOnline, checkBackendStatus } = useSignalStore();
+  const { dataSource, caseId, sessionId, filename, backendOnline, backendStatus, checkBackendStatus } = useSignalStore();
   const [retrying, setRetrying] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [showDiag, setShowDiag] = useState(false);
@@ -59,6 +59,31 @@ export default function DataModeBanner() {
     setCustomUrlInput('');
     await handleRetry();
   };
+
+  // If backend is in cold-start connecting state
+  if (backendStatus === 'CONNECTING') {
+    return (
+      <div className="bg-amber-950/95 border-b border-amber-700/80 text-white py-3 px-6 w-full z-50 sticky top-0 shadow-lg font-mono">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="w-5 h-5 text-amber-400 shrink-0 animate-spin" />
+            <div>
+              <div className="text-xs font-bold tracking-wider text-amber-200 flex items-center gap-2">
+                <span>CONNECTING TO DSP ENGINE...</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-amber-900/60 border border-amber-600/40 text-amber-300 rounded-xs font-normal">
+                  COLD START PROBE
+                </span>
+              </div>
+              <div className="text-[11px] text-amber-300/80 font-sans">
+                Target Backend: <code className="bg-amber-900/60 px-1 py-0.5 rounded-xs font-mono">{configuredBackend}</code>
+                <span className="text-slate-400 ml-2">(Free-tier cloud instances may take up to 40s to spin up)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // If backend is genuinely offline
   if (!backendOnline) {

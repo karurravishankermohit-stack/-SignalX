@@ -55,6 +55,7 @@ export const useSignalStore = create(
       setResult: (key, data) => set({ [key]: data }),
       
       checkBackendStatus: async () => {
+        set({ backendStatus: 'CONNECTING' });
         try {
           const isAlive = await checkHealth();
           set({

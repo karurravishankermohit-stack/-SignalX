@@ -23,7 +23,7 @@ export function getBackendUrl() {
     return 'http://127.0.0.1:8000';
   }
 
-  // Permanent production FastAPI DSP backend service default (purging temporary ngrok URLs)
+  // Permanent production FastAPI DSP backend service default
   return 'https://signalx-dsp-backend.onrender.com';
 }
 
@@ -112,6 +112,7 @@ export async function apiFetch(endpoint, options = {}) {
 /**
  * Real Python DSP Backend Health Check
  * Validates that the endpoint returns status: 'ok' and dsp: true
+ * Supports up to 35s timeout to gracefully accommodate cloud cold starts.
  */
 export async function checkHealth(customUrl = null) {
   const base = customUrl || getBackendUrl();
@@ -119,13 +120,17 @@ export async function checkHealth(customUrl = null) {
   
   for (const path of ['/api/health', '/health']) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
       const res = await fetch(`${base}${path}`, {
         method: 'GET',
         cache: 'no-cache',
+        signal: controller.signal,
         headers: {
           'Accept': 'application/json'
         }
       });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();
         if (data?.status === 'ok' && (data?.dsp === true || data?.dsp_engine === 'available' || data?.service === 'SignalX DSP Engine' || data?.service === 'signalx-dsp')) {

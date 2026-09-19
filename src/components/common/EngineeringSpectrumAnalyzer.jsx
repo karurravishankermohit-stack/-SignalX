@@ -14,12 +14,13 @@ export default function EngineeringSpectrumAnalyzer({
   className = ''
 }) {
   const canvasRef = useRef(null);
-  const { dataSource, backendOnline } = useSignalStore();
+  const { dataSource, backendOnline, backendStatus } = useSignalStore();
 
   // If props didn't specify, derive from store
   const activeSignal = hasActiveSignal || Boolean(dataSource);
   const demoSignal = isDemo || dataSource === 'DEMO_DATA';
-  const offlineMode = !backendOnline;
+  const connectingMode = backendStatus === 'CONNECTING';
+  const offlineMode = !backendOnline && !connectingMode;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -353,7 +354,12 @@ export default function EngineeringSpectrumAnalyzer({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {offlineMode ? (
+          {connectingMode ? (
+            <span className="px-1.5 py-0.5 rounded-xs bg-amber-950/80 text-amber-300 border border-amber-700/60 text-[10px] font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-spin" />
+              CONNECTING...
+            </span>
+          ) : offlineMode ? (
             <span className="px-1.5 py-0.5 rounded-xs bg-rose-950/80 text-rose-300 border border-rose-700/60 text-[10px] font-semibold flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
               BACKEND OFFLINE
