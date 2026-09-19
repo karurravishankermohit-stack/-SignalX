@@ -34,16 +34,25 @@ app = FastAPI(
     description="Scientific DSP Backend for SIH 2026 / SIH26147 (NTRO)"
 )
 
-# CORS configuration - Explicit origins (no wildcard in production with credentials)
+# CORS configuration - Explicit origins with dynamic environment support
+_frontend_url = os.getenv("FRONTEND_URL", "https://signal-x-ruddy.vercel.app").rstrip("/")
+_cors_origins = [
+    _frontend_url,
+    "https://signal-x-ruddy.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000"
+]
+# Remove duplicates while preserving order
+_cors_origins = list(dict.fromkeys(_cors_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://signal-x-ruddy.vercel.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=_cors_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,8 +108,9 @@ async def startup():
 def health():
     return {
         "status": "ok",
-        "service": "signalx-dsp",
+        "service": "SignalX DSP Engine",
         "version": "1.0.0",
+        "environment": os.getenv("ENVIRONMENT", "production"),
         "dsp": True,
         "dsp_engine": "available",
         "platform": "SignalX NTRO SIH26147"

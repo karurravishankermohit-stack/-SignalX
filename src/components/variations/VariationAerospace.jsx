@@ -94,7 +94,9 @@ export default function VariationAerospace() {
                 snr="18.7 dB"
                 bandwidth="420 kHz"
                 modulation="QPSK"
-                status="ANALYSIS READY"
+                status="DEMO BENCHMARK"
+                hasActiveSignal={true}
+                isDemo={true}
               />
             </div>
           </div>

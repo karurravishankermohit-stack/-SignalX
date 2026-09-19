@@ -68,7 +68,16 @@ export default function VisualizationShowcase() {
                 <span className="font-bold text-white">CALIBRATED SPECTRUM ANALYZER</span>
                 <span>WELCH METHOD • HANNING WINDOW • 2048 POINTS</span>
               </div>
-              <EngineeringSpectrumAnalyzer height={320} />
+              <EngineeringSpectrumAnalyzer 
+                height={320} 
+                frequency="+124.3 kHz"
+                snr="18.7 dB"
+                bandwidth="420 kHz"
+                modulation="QPSK"
+                status="DEMO BENCHMARK"
+                hasActiveSignal={true}
+                isDemo={true}
+              />
             </div>
           )}
 

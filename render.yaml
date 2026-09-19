@@ -12,3 +12,7 @@ services:
         value: signalx-c618c
       - key: SESSION_SECRET
         generateValue: true
+      - key: FRONTEND_URL
+        value: https://signal-x-ruddy.vercel.app
+      - key: ENVIRONMENT
+        value: production

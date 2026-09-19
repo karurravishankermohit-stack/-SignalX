@@ -62,7 +62,9 @@ def get_oauth_config():
     if (client_secret.startswith('"') and client_secret.endswith('"')) or (client_secret.startswith("'") and client_secret.endswith("'")):
         client_secret = client_secret[1:-1].strip()
 
-    redirect_uri = (os.getenv("GOOGLE_REDIRECT_URI") or "http://localhost:3000/auth/callback").strip()
+    default_frontend = (os.getenv("FRONTEND_URL") or "https://signal-x-ruddy.vercel.app").rstrip("/")
+    default_redirect = f"{default_frontend}/auth/callback" if os.getenv("ENVIRONMENT") == "production" else "http://localhost:3000/auth/callback"
+    redirect_uri = (os.getenv("GOOGLE_REDIRECT_URI") or default_redirect).strip()
     if (redirect_uri.startswith('"') and redirect_uri.endswith('"')) or (redirect_uri.startswith("'") and redirect_uri.endswith("'")):
         redirect_uri = redirect_uri[1:-1].strip()
 
@@ -475,8 +477,9 @@ def google_login_redirect():
     NEVER silently falls back to local evaluator mode.
     """
     cfg = get_oauth_config()
+    frontend_base = (os.getenv("FRONTEND_URL") or "https://signal-x-ruddy.vercel.app").rstrip("/") if os.getenv("ENVIRONMENT") == "production" else "http://localhost:3000"
     if not cfg["configured"]:
-        return RedirectResponse(url="http://localhost:3000/login?error=oauth_not_configured")
+        return RedirectResponse(url=f"{frontend_base}/login?error=oauth_not_configured")
 
     scope = "openid email profile"
     params = urllib.parse.urlencode({
@@ -496,8 +499,9 @@ def backend_auth_callback_fallback(request: Request):
     If the browser hits the backend /auth/callback directly, forward it to the frontend SPA route
     so raw JSON is NEVER presented directly to the user.
     """
+    frontend_base = (os.getenv("FRONTEND_URL") or "https://signal-x-ruddy.vercel.app").rstrip("/") if os.getenv("ENVIRONMENT") == "production" else "http://localhost:3000"
     query = request.url.query
-    dest = f"http://localhost:3000/auth/callback{('?' + query) if query else ''}"
+    dest = f"{frontend_base}/auth/callback{('?' + query) if query else ''}"
     return RedirectResponse(url=dest, status_code=307)
 
 

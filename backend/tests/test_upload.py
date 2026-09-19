@@ -1,49 +1,47 @@
-import os
+import sys
+from pathlib import Path
+import io
 import numpy as np
 import scipy.io.wavfile as wav
-import urllib.request
-import json
 
-os.makedirs('backend/tests/fixtures', exist_ok=True)
-wav_path = 'backend/tests/fixtures/test_real.wav'
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-fs = 48000
-t = np.linspace(0, 1.0, fs, endpoint=False)
-sig = 0.6 * np.sin(2 * np.pi * 1200 * t) + 0.05 * np.random.randn(len(t))
-sig_int16 = (sig * 32767).astype(np.int16)
-wav.write(wav_path, fs, sig_int16)
+from fastapi.testclient import TestClient
+from app.main import app
 
-boundary = '----WebKitFormBoundarySignalXTest'
-with open(wav_path, 'rb') as f:
-    wav_bytes = f.read()
+client = TestClient(app)
 
-part_header = (
-    f'--{boundary}\r\n'
-    'Content-Disposition: form-data; name="file"; filename="test_real.wav"\r\n'
-    'Content-Type: audio/wav\r\n\r\n'
-).encode('utf-8')
-part_footer = f'\r\n--{boundary}--\r\n'.encode('utf-8')
-body = part_header + wav_bytes + part_footer
+def test_real_wav_upload_and_provenance():
+    # 1. Generate real audio wav bytes
+    fs = 48000
+    t = np.linspace(0, 1.0, fs, endpoint=False)
+    sig = 0.6 * np.sin(2 * np.pi * 1200 * t) + 0.05 * np.random.randn(len(t))
+    sig_int16 = (sig * 32767).astype(np.int16)
+    
+    buffer = io.BytesIO()
+    wav.write(buffer, fs, sig_int16)
+    buffer.seek(0)
 
-req = urllib.request.Request(
-    'http://localhost:8000/api/upload',
-    data=body,
-    headers={'Content-Type': f'multipart/form-data; boundary={boundary}'}
-)
-res = urllib.request.urlopen(req)
-data = json.loads(res.read())
-print(f"[PASS] Upload status: {res.status}")
-print(f"[PASS] Data Source: {data.get('data_source')}")
-print(f"[PASS] Sample Rate: {data.get('sample_rate')} Hz (Source: {data.get('sample_rate_source')})")
-print(f"[PASS] Center Freq RF: {data.get('center_freq_rf')}")
+    # 2. Upload to FastAPI endpoint via TestClient
+    response = client.post(
+        "/api/upload",
+        files={"file": ("test_real.wav", buffer, "audio/wav")}
+    )
+    assert response.status_code == 200, f"Upload failed: {response.text}"
+    data = response.json()
 
-sid = data.get('session_id')
-res_p = urllib.request.urlopen(f'http://localhost:8000/api/analyze/parameters/{sid}')
-p = json.loads(res_p.read())
-print(f"[PASS] Center Freq RF Provenance: {p.get('center_frequency_rf', {}).get('source')}")
-print(f"[PASS] Sample Rate Provenance: {p.get('sample_rate', {}).get('source')}")
-print(f"[PASS] Session Data Source: {p.get('data_source')}")
+    assert data.get("data_source") == "REAL_ANALYSIS"
+    assert data.get("sample_rate") == 48000
+    assert data.get("sample_rate_source") == "METADATA"
 
-assert data.get('data_source') == 'REAL_ANALYSIS'
-assert p.get('center_frequency_rf', {}).get('source') == 'UNAVAILABLE'
-print('\n>>> REAL FILE PROVENANCE VERIFICATION PASSED! <<<')
+    sid = data.get("session_id")
+    assert sid is not None
+
+    # 3. Query parameters and verify strict provenance honesty
+    param_res = client.get(f"/api/analyze/parameters/{sid}")
+    assert param_res.status_code == 200
+    p = param_res.json()
+
+    assert p.get("data_source") == "REAL_ANALYSIS"
+    assert p.get("center_frequency_rf", {}).get("source") == "UNAVAILABLE"
+    assert p.get("sample_rate", {}).get("source") == "METADATA"

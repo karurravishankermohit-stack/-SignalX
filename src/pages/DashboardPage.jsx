@@ -24,10 +24,36 @@ import { StaggerContainer, StaggerItem, NumberTicker, RadarSweep, MotionButton }
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { sessionId, caseId, dataSource, currentUser, setSession } = useSignalStore();
+  const { 
+    sessionId, 
+    caseId, 
+    dataSource, 
+    currentUser, 
+    setSession,
+    parameters,
+    quality,
+    modulation,
+    backendOnline 
+  } = useSignalStore();
   const [stats, setStats] = useState(null);
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const formattedCarrier = parameters?.carrier_offset_hz !== undefined && parameters?.carrier_offset_hz !== null
+    ? `${parameters.carrier_offset_hz >= 0 ? '+' : ''}${(parameters.carrier_offset_hz / 1000).toFixed(1)} kHz`
+    : null;
+
+  const formattedSnr = quality?.snr_db !== undefined && quality?.snr_db !== null
+    ? `${quality.snr_db.toFixed(1)} dB`
+    : null;
+
+  const formattedBw = parameters?.bandwidth_hz !== undefined && parameters?.bandwidth_hz !== null
+    ? `${(parameters.bandwidth_hz / 1000).toFixed(0)} kHz`
+    : null;
+
+  const formattedMod = modulation?.classified_modulation || null;
+  const isDemo = dataSource === 'DEMO_DATA';
+  const hasActiveSignal = Boolean(sessionId);
 
   const fetchDashboard = () => {
     setLoading(true);
@@ -55,8 +81,6 @@ export default function DashboardPage() {
     });
     navigate('/analysis');
   };
-
-  const isDemo = dataSource === 'DEMO_DATA';
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto font-sans">
@@ -193,10 +217,18 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-white tracking-wide">INSTRUMENTATION SPECTRUM MONITOR</span>
             <span className="text-slate-500">|</span>
-            <span className="text-cyan-400/90">{caseId ? `ACTIVE CASE: ${caseId}` : 'NO ACTIVE SIGNAL LOADED'}</span>
+            <span className={hasActiveSignal ? "text-cyan-400 font-bold" : "text-slate-400"}>
+              {!backendOnline 
+                ? (hasActiveSignal ? `CASE: ${caseId} (CACHED SNAPSHOT)` : 'DSP ENGINE OFFLINE — NO ACTIVE SIGNAL')
+                : (hasActiveSignal ? `ACTIVE CASE: ${caseId}` : 'NO ACTIVE SIGNAL LOADED')}
+            </span>
           </div>
           <div>
-            {dataSource ? (
+            {!backendOnline ? (
+              <span className="text-[10px] font-mono px-2.5 py-0.5 bg-rose-950/80 text-rose-300 rounded-xs border border-rose-700/60 font-semibold">
+                DSP OFFLINE
+              </span>
+            ) : dataSource ? (
               <SourceBadge source={dataSource} />
             ) : (
               <span className="text-[10px] font-mono px-2.5 py-0.5 bg-white/[0.04] text-slate-400 rounded-xs border border-white/10">
@@ -206,7 +238,16 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <EngineeringSpectrumAnalyzer height={240} />
+        <EngineeringSpectrumAnalyzer 
+          height={240}
+          frequency={formattedCarrier}
+          snr={formattedSnr}
+          bandwidth={formattedBw}
+          modulation={formattedMod}
+          hasActiveSignal={hasActiveSignal}
+          isDemo={isDemo}
+          isCached={!backendOnline && hasActiveSignal}
+        />
       </div>
 
       {/* Real Investigation Cases Table */}

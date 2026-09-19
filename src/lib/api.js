@@ -9,6 +9,11 @@ export function getBackendUrl() {
     }
   }
 
+  const envApiUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envApiUrl !== undefined && envApiUrl !== null && envApiUrl !== '') {
+    return envApiUrl.replace(/\/+$/, '');
+  }
+
   const envUrl = import.meta.env.VITE_BACKEND_URL;
   if (envUrl !== undefined && envUrl !== null && envUrl !== '') {
     return envUrl.replace(/\/+$/, '');
@@ -18,8 +23,8 @@ export function getBackendUrl() {
     return 'http://127.0.0.1:8000';
   }
 
-  // Active production FastAPI DSP backend service
-  return 'https://dean-gluten-fifth.ngrok-free.dev';
+  // Permanent production FastAPI DSP backend service default (purging temporary ngrok URLs)
+  return 'https://signalx-dsp-backend.onrender.com';
 }
 
 export function setCustomBackendUrl(url) {
@@ -55,7 +60,6 @@ export async function authFetch(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${base}${endpoint}`;
 
   const headers = {
-    'ngrok-skip-browser-warning': 'true',
     ...(options.headers || {})
   };
   const token = getStoredSessionToken();
@@ -80,7 +84,6 @@ export async function dspFetch(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${base}${endpoint}`;
 
   const headers = {
-    'ngrok-skip-browser-warning': 'true',
     ...(options.headers || {})
   };
   const token = getStoredSessionToken();
@@ -110,30 +113,82 @@ export async function apiFetch(endpoint, options = {}) {
  * Real Python DSP Backend Health Check
  * Validates that the endpoint returns status: 'ok' and dsp: true
  */
-export async function checkHealth() {
-  const base = getBackendUrl();
+export async function checkHealth(customUrl = null) {
+  const base = customUrl || getBackendUrl();
   if (!base) return false;
-  const endpoint = `${base}/api/health`;
-  try {
-    const res = await fetch(endpoint, {
-      method: 'GET',
-      cache: 'no-cache',
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        'Accept': 'application/json'
+  
+  for (const path of ['/api/health', '/health']) {
+    try {
+      const res = await fetch(`${base}${path}`, {
+        method: 'GET',
+        cache: 'no-cache',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.status === 'ok' && (data?.dsp === true || data?.dsp_engine === 'available' || data?.service === 'SignalX DSP Engine' || data?.service === 'signalx-dsp')) {
+          return true;
+        }
       }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.status === 'ok' && (data?.dsp === true || data?.service === 'signalx-dsp' || data?.dsp_engine === 'available')) {
-        return true;
-      }
-    }
-  } catch (e) {
-    console.warn('[SignalX Health] Health check failed for target:', endpoint, e);
-    return false;
+    } catch (_) {}
   }
   return false;
+}
+
+/**
+ * Comprehensive Diagnostics Probe:
+ * Queries the active backend and calculates exact roundtrip latency and HTTP status
+ */
+export async function measureBackendDiagnostics(customUrl = null) {
+  const base = customUrl || getBackendUrl();
+  const start = performance.now();
+  const diag = {
+    frontendUrl: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+    backendUrl: base,
+    backendOnline: false,
+    httpStatus: 'N/A',
+    latencyMs: 0,
+    timestamp: new Date().toISOString(),
+    lastSuccess: null,
+    lastFailure: null,
+    environment: import.meta.env.MODE || 'production',
+    service: 'Unknown',
+    version: '1.0.0'
+  };
+
+  if (!base) {
+    diag.httpStatus = 'No Backend URL configured';
+    return diag;
+  }
+
+  for (const path of ['/api/health', '/health']) {
+    try {
+      const res = await fetch(`${base}${path}`, {
+        method: 'GET',
+        cache: 'no-cache',
+        headers: { 'Accept': 'application/json' }
+      });
+      const end = performance.now();
+      diag.latencyMs = Math.round(end - start);
+      diag.httpStatus = `${res.status} ${res.statusText || 'OK'}`;
+      
+      if (res.ok) {
+        const data = await res.json();
+        diag.backendOnline = true;
+        diag.service = data.service || 'SignalX DSP Engine';
+        diag.version = data.version || '1.0.0';
+        diag.environment = data.environment || 'production';
+        diag.lastSuccess = new Date().toLocaleTimeString();
+        return diag;
+      }
+    } catch (err) {
+      diag.httpStatus = err.message || 'Connection Refused / Network Error';
+      diag.lastFailure = new Date().toLocaleTimeString();
+    }
+  }
+  return diag;
 }
 
 export async function uploadFile(file, iqConfig = {}) {
