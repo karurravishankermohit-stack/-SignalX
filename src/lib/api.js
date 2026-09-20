@@ -2,10 +2,17 @@ export function getBackendUrl() {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('signalx_backend_url');
     if (custom && custom.trim()) {
-      return custom.trim().replace(/\/+$/, '');
+      const cleanCustom = custom.trim().replace(/\/+$/, '');
+      if (!cleanCustom.includes('signalx-dsp-backend.onrender.com') && !cleanCustom.includes('ngrok')) {
+        return cleanCustom;
+      }
+      localStorage.removeItem('signalx_backend_url');
     }
     if (window.__SIGNALX_BACKEND_URL__) {
-      return window.__SIGNALX_BACKEND_URL__.replace(/\/+$/, '');
+      const cleanWin = window.__SIGNALX_BACKEND_URL__.replace(/\/+$/, '');
+      if (!cleanWin.includes('signalx-dsp-backend.onrender.com') && !cleanWin.includes('ngrok')) {
+        return cleanWin;
+      }
     }
   }
 
