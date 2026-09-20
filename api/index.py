@@ -2,22 +2,10 @@ import sys
 import os
 from pathlib import Path
 
-# Add backend directory to sys.path so app and its packages can be imported
-current_dir = Path(__file__).resolve().parent
-candidates = [
-    current_dir.parent / "backend",
-    current_dir / "backend",
-    Path(os.getcwd()) / "backend",
-    current_dir.parent,
-    current_dir
-]
-
-for c in candidates:
-    s = str(c)
-    if c.is_dir() and s not in sys.path:
-        sys.path.insert(0, s)
+_api_dir = Path(__file__).resolve().parent
+if str(_api_dir) not in sys.path:
+    sys.path.insert(0, str(_api_dir))
 
 from app.main import app
 
-# Expose app and handler for Vercel ASGI runner
 handler = app
