@@ -81,14 +81,57 @@ export async function authFetch(endpoint, options = {}) {
   });
 }
 
+function mapDspEndpoint(endpoint) {
+  const base = getBackendUrl();
+  if (base) return endpoint.startsWith('http') ? endpoint : `${base}${endpoint}`;
+
+  if (endpoint.startsWith('/api/demo/load')) return '/api/dsp?action=demo_load';
+  if (endpoint.startsWith('/api/upload')) return '/api/dsp?action=upload';
+  if (endpoint.startsWith('/api/demodulate')) return '/api/dsp?action=demodulate';
+  if (endpoint.startsWith('/api/detect/interleaving')) return '/api/dsp?action=detect_interleaving';
+  if (endpoint.startsWith('/api/deinterleave')) return '/api/dsp?action=deinterleave';
+  if (endpoint.startsWith('/api/detect/fec')) return '/api/dsp?action=detect_fec';
+  if (endpoint.startsWith('/api/fec-decode')) return '/api/dsp?action=fec_decode';
+  if (endpoint.startsWith('/api/correlate')) return '/api/dsp?action=correlate';
+
+  const [pathname, queryString] = endpoint.split('?');
+  const parts = pathname.split('/').filter(Boolean);
+
+  if (pathname.includes('/api/analyze/')) {
+    const action = parts[2] || 'quality';
+    const sid = parts[3] || '';
+    const qs = queryString ? `&${queryString}` : '';
+    return `/api/dsp?action=${action}${sid ? `&session_id=${encodeURIComponent(sid)}` : ''}${qs}`;
+  }
+
+  if (pathname.includes('/api/classify/')) {
+    const sid = parts[2] || '';
+    const qs = queryString ? `&${queryString}` : '';
+    return `/api/dsp?action=classify${sid ? `&session_id=${encodeURIComponent(sid)}` : ''}${qs}`;
+  }
+
+  if (pathname.includes('/api/report/')) {
+    const sid = parts[2] || '';
+    const qs = queryString ? `&${queryString}` : '';
+    return `/api/dsp?action=report${sid ? `&session_id=${encodeURIComponent(sid)}` : ''}${qs}`;
+  }
+
+  if (pathname.includes('/api/bitstream/')) {
+    const sid = parts[2] || '';
+    const qs = queryString ? `&${queryString}` : '';
+    return `/api/dsp?action=bitstream${sid ? `&session_id=${encodeURIComponent(sid)}` : ''}${qs}`;
+  }
+
+  return endpoint;
+}
+
 /**
  * DSP Engine Fetch:
  * Dispatches signal processing requests (FFT, demodulation, AMC, FEC, uploads)
- * directly to the real Python FastAPI DSP backend.
+ * directly to the serverless DSP engine or external FastAPI instance.
  */
 export async function dspFetch(endpoint, options = {}) {
-  const base = getBackendUrl();
-  const url = endpoint.startsWith('http') ? endpoint : (base ? `${base}${endpoint}` : endpoint);
+  const url = mapDspEndpoint(endpoint);
 
   const headers = {
     ...(options.headers || {})
