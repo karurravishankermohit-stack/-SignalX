@@ -11,19 +11,36 @@ class ParseError(Exception):
 
 def parse_wav(filepath: str, interpretation: str = 'auto') -> dict:
     try:
-        import soundfile as sf
-        data, sr = sf.read(filepath, dtype='float32', always_2d=True)
+        from scipy.io import wavfile
+        sr, raw_data = wavfile.read(filepath)
+        if raw_data.ndim == 1:
+            data = raw_data[:, np.newaxis]
+        else:
+            data = raw_data
+            
+        if np.issubdtype(data.dtype, np.integer):
+            info = np.iinfo(data.dtype)
+            data = (data.astype(np.float32) / max(abs(info.min), info.max))
+            bit_depth = f"PCM_{info.bits}"
+        elif np.issubdtype(data.dtype, np.floating):
+            data = data.astype(np.float32)
+            bit_depth = f"FLOAT_{data.dtype.itemsize * 8}"
+        else:
+            bit_depth = str(data.dtype).upper()
     except Exception as e:
-        raise ParseError(f"WAV read error: {e}")
+        try:
+            import soundfile as sf
+            data, sr = sf.read(filepath, dtype='float32', always_2d=True)
+            try:
+                info = sf.info(filepath)
+                bit_depth = info.subtype
+            except:
+                bit_depth = 'UNKNOWN'
+        except Exception:
+            raise ParseError(f"WAV read error: {e}")
 
     n_samples, n_ch = data.shape
     duration = n_samples / sr
-
-    try:
-        info = sf.info(filepath)
-        bit_depth = info.subtype
-    except:
-        bit_depth = 'UNKNOWN'
 
     interp = interpretation.lower()
     if interp in ('iq', 'stereo_iq'):

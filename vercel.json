@@ -5,7 +5,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/index.py": {
-      "excludeFiles": "{node_modules,dist,src,public,backend/tests}/**"
+      "includeFiles": "api/_backend/**"
     }
   },
   "rewrites": [
