@@ -213,7 +213,7 @@ export async function measureBackendDiagnostics(customUrl = null) {
     timestamp: new Date().toISOString(),
     lastSuccess: null,
     lastFailure: null,
-    environment: import.meta.env.MODE || 'production',
+    environment: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.MODE) ? import.meta.env.MODE : 'production',
     service: 'Unknown',
     version: '1.0.0'
   };
