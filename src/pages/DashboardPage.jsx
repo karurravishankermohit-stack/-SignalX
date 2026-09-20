@@ -136,12 +136,17 @@ export default function DashboardPage() {
               <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">TOTAL CASES LOGGED</span>
               <Database className="w-3.5 h-3.5 text-blue-400/80" />
             </div>
-            <div className="text-3xl font-bold text-white mt-2 font-mono">
+            <div className="text-3xl font-bold text-white mt-2 font-mono flex items-baseline justify-between">
               <NumberTicker value={stats ? stats.total_files : 0} duration={900} />
+              {!backendOnline && (
+                <span className="text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold">
+                  CACHED
+                </span>
+              )}
             </div>
             <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              <span>Persisted SQLite sessions</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-blue-400' : 'bg-amber-400'}`} />
+              <span>{backendOnline ? 'Persisted SQLite sessions' : 'Persisted SQLite sessions (Cached / Local)'}</span>
             </div>
           </div>
         </StaggerItem>
@@ -154,12 +159,17 @@ export default function DashboardPage() {
               <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">SUCCESSFUL ANALYSES</span>
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400/80" />
             </div>
-            <div className="text-3xl font-bold text-emerald-400 mt-2 font-mono drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]">
+            <div className="text-3xl font-bold text-emerald-400 mt-2 font-mono drop-shadow-[0_0_12px_rgba(16,185,129,0.3)] flex items-baseline justify-between">
               <NumberTicker value={stats ? stats.successful_analyses : 0} duration={1000} />
+              {!backendOnline && (
+                <span className="text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold">
+                  CACHED
+                </span>
+              )}
             </div>
             <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>Demodulated payload streams</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <span>{backendOnline ? 'Demodulated payload streams' : 'Historical demodulated streams (Cached)'}</span>
             </div>
           </div>
         </StaggerItem>
@@ -172,17 +182,22 @@ export default function DashboardPage() {
               <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">AVERAGE SNR</span>
               <TrendingUp className="w-3.5 h-3.5 text-cyan-400/80" />
             </div>
-            <div className="text-3xl font-bold text-cyan-400 mt-2 font-mono drop-shadow-[0_0_12px_rgba(0,240,255,0.3)]">
+            <div className="text-3xl font-bold text-cyan-400 mt-2 font-mono drop-shadow-[0_0_12px_rgba(0,240,255,0.3)] flex items-baseline justify-between">
               <NumberTicker 
                 value={stats?.average_snr_db !== undefined ? stats.average_snr_db : 0} 
                 decimals={1} 
                 suffix=" dB" 
                 duration={1100} 
               />
+              {!backendOnline && (
+                <span className="text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold">
+                  CACHED
+                </span>
+              )}
             </div>
             <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-              <span>Calculated across active cases</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-cyan-400' : 'bg-amber-400'}`} />
+              <span>{backendOnline ? 'Calculated across active cases' : 'Historical average across cached cases'}</span>
             </div>
           </div>
         </StaggerItem>
@@ -195,17 +210,22 @@ export default function DashboardPage() {
               <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">PROCESSING SPEED</span>
               <Zap className="w-3.5 h-3.5 text-purple-400/80" />
             </div>
-            <div className="text-3xl font-bold text-slate-100 mt-2 font-mono">
+            <div className="text-3xl font-bold text-slate-100 mt-2 font-mono flex items-baseline justify-between">
               <NumberTicker 
                 value={stats?.average_processing_time_s || 1.2} 
                 decimals={1} 
                 suffix=" s" 
                 duration={1200} 
               />
+              {!backendOnline && (
+                <span className="text-[10px] tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold">
+                  CACHED
+                </span>
+              )}
             </div>
             <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-              <span>FFT + AMC + Demodulation</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-purple-400' : 'bg-amber-400'}`} />
+              <span>{backendOnline ? 'FFT + AMC + Demodulation' : 'Historical execution benchmark (Cached)'}</span>
             </div>
           </div>
         </StaggerItem>
