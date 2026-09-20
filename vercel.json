@@ -2,30 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/health",
-      "destination": "/api/health.js"
-    },
-    {
-      "source": "/api/analyze/(.*)",
-      "destination": "/api/analyze.js"
-    },
-    {
-      "source": "/api/classify/(.*)",
-      "destination": "/api/classify.js"
-    },
-    {
-      "source": "/api/detect/(.*)",
-      "destination": "/api/detect.js"
-    },
-    {
-      "source": "/api/report/(.*)",
-      "destination": "/api/report.js"
-    },
-    {
-      "source": "/api/cases/(.*)",
-      "destination": "/api/cases.js"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -37,15 +13,6 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
         }
       ]
     }
