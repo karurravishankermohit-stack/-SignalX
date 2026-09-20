@@ -23,8 +23,13 @@ from ..database import (
 )
 
 from dotenv import load_dotenv
-import firebase_admin
-from firebase_admin import auth as fb_auth, credentials as fb_creds
+try:
+    import firebase_admin
+    from firebase_admin import auth as fb_auth, credentials as fb_creds
+except ImportError:
+    firebase_admin = None
+    fb_auth = None
+    fb_creds = None
 import jwt
 from jwt import PyJWKClient
 
@@ -110,6 +115,8 @@ _firebase_initialized = False
 
 def init_firebase_admin():
     global _firebase_initialized
+    if firebase_admin is None:
+        return False
     if not firebase_admin._apps:
         try:
             cred_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
@@ -160,7 +167,7 @@ def verify_firebase_id_token(id_token: str) -> dict:
     decoded = None
     # 1. Attempt Admin SDK verification if credentials present
     try:
-        if firebase_admin._apps:
+        if firebase_admin and firebase_admin._apps:
             decoded = fb_auth.verify_id_token(id_token, clock_skew_seconds=10)
     except Exception as e:
         logger.debug(f"Firebase Admin SDK fallback to Google JWKS: {e}")

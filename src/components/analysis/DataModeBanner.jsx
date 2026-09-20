@@ -179,7 +179,7 @@ export default function DataModeBanner() {
               <span className="text-[10px] text-slate-300">CUSTOM BACKEND:</span>
               <input
                 type="text"
-                placeholder="https://<your-backend>.onrender.com or http://localhost:8000"
+                placeholder="https://signal-x-ruddy.vercel.app or http://localhost:8000"
                 value={customUrlInput}
                 onChange={(e) => setCustomUrlInput(e.target.value)}
                 className="bg-black/60 border border-rose-800 text-white px-2 py-1 text-[11px] rounded-xs font-mono flex-1 min-w-[240px] focus:outline-none focus:border-rose-500"

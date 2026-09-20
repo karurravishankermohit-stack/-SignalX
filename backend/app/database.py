@@ -8,7 +8,7 @@ import numpy as np
 
 import tempfile
 
-IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") or os.getenv("VERCEL_ENV"))
 
 if IS_SERVERLESS:
     BASE_DATA_DIR = Path(tempfile.gettempdir()) / "signalx_data"
@@ -16,13 +16,32 @@ if IS_SERVERLESS:
     SESSIONS_DIR = BASE_DATA_DIR / "sessions"
     UPLOADS_DIR = BASE_DATA_DIR / "uploads"
 else:
-    DB_PATH = Path(__file__).parent.parent / "signalx.db"
-    SESSIONS_DIR = Path(__file__).parent.parent / "sessions"
-    UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
+    try:
+        candidate_dir = Path(__file__).parent.parent
+        test_probe = candidate_dir / ".write_probe"
+        test_probe.touch()
+        test_probe.unlink()
+        DB_PATH = candidate_dir / "signalx.db"
+        SESSIONS_DIR = candidate_dir / "sessions"
+        UPLOADS_DIR = candidate_dir / "uploads"
+    except (OSError, PermissionError):
+        BASE_DATA_DIR = Path(tempfile.gettempdir()) / "signalx_data"
+        DB_PATH = BASE_DATA_DIR / "signalx.db"
+        SESSIONS_DIR = BASE_DATA_DIR / "sessions"
+        UPLOADS_DIR = BASE_DATA_DIR / "uploads"
 
-DB_PATH.parent.mkdir(exist_ok=True, parents=True)
-SESSIONS_DIR.mkdir(exist_ok=True, parents=True)
-UPLOADS_DIR.mkdir(exist_ok=True, parents=True)
+try:
+    DB_PATH.parent.mkdir(exist_ok=True, parents=True)
+    SESSIONS_DIR.mkdir(exist_ok=True, parents=True)
+    UPLOADS_DIR.mkdir(exist_ok=True, parents=True)
+except (OSError, PermissionError):
+    BASE_DATA_DIR = Path(tempfile.gettempdir()) / "signalx_data"
+    DB_PATH = BASE_DATA_DIR / "signalx.db"
+    SESSIONS_DIR = BASE_DATA_DIR / "sessions"
+    UPLOADS_DIR = BASE_DATA_DIR / "uploads"
+    DB_PATH.parent.mkdir(exist_ok=True, parents=True)
+    SESSIONS_DIR.mkdir(exist_ok=True, parents=True)
+    UPLOADS_DIR.mkdir(exist_ok=True, parents=True)
 
 def get_db():
     conn = sqlite3.connect(str(DB_PATH))

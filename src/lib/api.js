@@ -23,8 +23,8 @@ export function getBackendUrl() {
     return 'http://127.0.0.1:8000';
   }
 
-  // Permanent production FastAPI DSP backend service default
-  return 'https://signalx-dsp-backend.onrender.com';
+  // Same-origin Vercel serverless FastAPI DSP backend
+  return '';
 }
 
 export function setCustomBackendUrl(url) {
@@ -81,7 +81,7 @@ export async function authFetch(endpoint, options = {}) {
  */
 export async function dspFetch(endpoint, options = {}) {
   const base = getBackendUrl();
-  const url = endpoint.startsWith('http') ? endpoint : `${base}${endpoint}`;
+  const url = endpoint.startsWith('http') ? endpoint : (base ? `${base}${endpoint}` : endpoint);
 
   const headers = {
     ...(options.headers || {})
@@ -115,14 +115,15 @@ export async function apiFetch(endpoint, options = {}) {
  * Supports up to 35s timeout to gracefully accommodate cloud cold starts.
  */
 export async function checkHealth(customUrl = null) {
-  const base = customUrl || getBackendUrl();
-  if (!base) return false;
+  const base = customUrl !== null && customUrl !== undefined ? customUrl : getBackendUrl();
+  if (base === null || base === undefined) return false;
   
   for (const path of ['/api/health', '/health']) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 35000);
-      const res = await fetch(`${base}${path}`, {
+      const targetUrl = base ? `${base}${path}` : path;
+      const res = await fetch(targetUrl, {
         method: 'GET',
         cache: 'no-cache',
         signal: controller.signal,
@@ -147,11 +148,12 @@ export async function checkHealth(customUrl = null) {
  * Queries the active backend and calculates exact roundtrip latency and HTTP status
  */
 export async function measureBackendDiagnostics(customUrl = null) {
-  const base = customUrl || getBackendUrl();
+  const base = customUrl !== null && customUrl !== undefined ? customUrl : getBackendUrl();
+  const displayBackendUrl = base || (typeof window !== 'undefined' ? `${window.location.origin} (Same-Origin)` : 'Same-Origin (/api)');
   const start = performance.now();
   const diag = {
     frontendUrl: typeof window !== 'undefined' ? window.location.origin : 'N/A',
-    backendUrl: base,
+    backendUrl: displayBackendUrl,
     backendOnline: false,
     httpStatus: 'N/A',
     latencyMs: 0,
@@ -163,14 +165,15 @@ export async function measureBackendDiagnostics(customUrl = null) {
     version: '1.0.0'
   };
 
-  if (!base) {
+  if (base === null || base === undefined) {
     diag.httpStatus = 'No Backend URL configured';
     return diag;
   }
 
   for (const path of ['/api/health', '/health']) {
     try {
-      const res = await fetch(`${base}${path}`, {
+      const targetUrl = base ? `${base}${path}` : path;
+      const res = await fetch(targetUrl, {
         method: 'GET',
         cache: 'no-cache',
         headers: { 'Accept': 'application/json' }
