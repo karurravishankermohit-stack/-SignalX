@@ -140,9 +140,12 @@ export async function checkHealth(customUrl = null) {
       });
       clearTimeout(timeoutId);
       if (res.ok) {
-        const data = await res.json();
-        if (data?.status === 'ok' && (data?.dsp === true || data?.dsp_engine === 'available' || data?.service === 'SignalX DSP Engine' || data?.service === 'signalx-dsp')) {
-          return true;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          if (data?.status === 'ok' && (data?.dsp === true || data?.dsp_engine === 'available' || data?.service === 'SignalX DSP Engine' || data?.service === 'signalx-dsp')) {
+            return true;
+          }
         }
       }
     } catch (_) {}
@@ -190,13 +193,16 @@ export async function measureBackendDiagnostics(customUrl = null) {
       diag.httpStatus = `${res.status} ${res.statusText || 'OK'}`;
       
       if (res.ok) {
-        const data = await res.json();
-        diag.backendOnline = true;
-        diag.service = data.service || 'SignalX DSP Engine';
-        diag.version = data.version || '1.0.0';
-        diag.environment = data.environment || 'production';
-        diag.lastSuccess = new Date().toLocaleTimeString();
-        return diag;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          diag.backendOnline = true;
+          diag.service = data.service || 'SignalX DSP Engine';
+          diag.version = data.version || '1.0.0';
+          diag.environment = data.environment || 'production';
+          diag.lastSuccess = new Date().toLocaleTimeString();
+          return diag;
+        }
       }
     } catch (err) {
       diag.httpStatus = err.message || 'Connection Refused / Network Error';
