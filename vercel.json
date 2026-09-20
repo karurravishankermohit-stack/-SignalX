@@ -3,6 +3,11 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.py": {
+      "excludeFiles": "{node_modules,dist,src,public,backend/tests}/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/auth/(.*)",

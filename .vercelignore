@@ -1,0 +1,13 @@
+backend/tests
+backend/signalx.db
+backend/sessions
+backend/uploads
+api/sessions
+api/uploads
+api/signalx.db
+api/__pycache__
+*.log
+*.npy
+*.wav
+node_modules
+dist
