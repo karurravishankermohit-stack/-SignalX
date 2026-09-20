@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { checkHealth } from '../lib/api';
+import { checkHealth, loadDemo } from '../lib/api';
 
 export const useSignalStore = create(
   persist(
@@ -14,7 +14,6 @@ export const useSignalStore = create(
         mode: 'DEMO/OFFLINE EVALUATION MODE'
       },
       setCurrentUser: (user) => set({ currentUser: user }),
-
 
       // Session
       sessionId: null,
@@ -74,6 +73,41 @@ export const useSignalStore = create(
         }
       },
 
+      ensureDemoSession: async (signalType = 'QPSK') => {
+        const currentSid = get().sessionId;
+        if (currentSid) return currentSid;
+        try {
+          const res = await loadDemo(signalType);
+          const sid = res.session_id || res.sessionId;
+          const cid = res.case_id || res.caseId;
+          const r = res.results || {};
+          set({
+            sessionId: sid,
+            caseId: cid,
+            filename: `demo_${signalType.toLowerCase()}.iq`,
+            fileFormat: 'iq',
+            dataSource: 'DEMO_DATA',
+            processingStatus: 'ready',
+            modulation: r.modulation || null,
+            demodulation: r.demodulation || null,
+            quality: r.quality || null,
+            parameters: r.parameters || null,
+            interleaving: r.interleaving || null,
+            fec: r.fec || null,
+            spectrum: r.spectrum || null,
+            waterfall: r.waterfall || null,
+            constellation: r.constellation || null,
+            bitstream: r.demodulation?.bits || null,
+            correlation: r.correlation || null,
+            report: r.report || null
+          });
+          return sid;
+        } catch (err) {
+          console.error('Failed to auto-seed demo session:', err);
+          return null;
+        }
+      },
+
       reset: () => set({
         sessionId: null,
         caseId: null,
@@ -112,6 +146,11 @@ export const useSignalStore = create(
         demodulation: state.demodulation,
         interleaving: state.interleaving,
         fec: state.fec,
+        spectrum: state.spectrum,
+        waterfall: state.waterfall,
+        constellation: state.constellation,
+        correlation: state.correlation,
+        report: state.report
       }),
     }
   )

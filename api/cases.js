@@ -6,6 +6,13 @@ export default function handler(req, res) {
   const cases = getAllCases();
   const urlPath = req.url.split('?')[0];
   const parts = urlPath.split('/').filter(Boolean);
+  if (req.method === 'DELETE') {
+    const caseId = req.query?.id || (parts.length > 2 ? parts[2] : null);
+    const idx = cases.findIndex(c => c.case_id === caseId || c.session_id === caseId);
+    if (idx !== -1) cases.splice(idx, 1);
+    return res.status(200).json({ success: true, deleted: caseId });
+  }
+
   if (parts.length > 2 && parts[2] !== 'cases') {
     const caseId = parts[2];
     const found = cases.find(c => c.case_id === caseId || c.session_id === caseId);

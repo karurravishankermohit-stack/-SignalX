@@ -8,7 +8,9 @@ import { useSignalStore } from '../../store/useSignalStore';
 
 export default function AnalysisLayout() {
   const location = useLocation();
+  const sessionId = useSignalStore(s => s.sessionId);
   const checkBackendStatus = useSignalStore(s => s.checkBackendStatus);
+  const ensureDemoSession = useSignalStore(s => s.ensureDemoSession);
 
   useEffect(() => {
     checkBackendStatus();
@@ -17,6 +19,12 @@ export default function AnalysisLayout() {
     }, 8000);
     return () => clearInterval(timer);
   }, [checkBackendStatus]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      ensureDemoSession();
+    }
+  }, [sessionId, ensureDemoSession]);
 
   return (
     <div className="flex h-screen bg-abyss-mesh text-slate-100 overflow-hidden font-sans relative">
