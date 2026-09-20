@@ -269,37 +269,47 @@ export async function getDashboardStats() {
 }
 
 export async function getQuality(sessionId) {
-  const res = await dspFetch(`/api/analyze/quality/${sessionId}`);
+  const url = sessionId ? `/api/analyze/quality?session_id=${encodeURIComponent(sessionId)}` : '/api/analyze/quality';
+  const res = await dspFetch(url);
   if (!res.ok) throw new Error('Failed to fetch quality');
   return res.json();
 }
 
 export async function getSpectrum(sessionId, window = 'hann', nfft = 2048) {
-  const res = await dspFetch(`/api/analyze/spectrum/${sessionId}?window=${window}&nfft=${nfft}`);
+  const url = sessionId 
+    ? `/api/analyze/spectrum?session_id=${encodeURIComponent(sessionId)}&window=${window}&nfft=${nfft}`
+    : `/api/analyze/spectrum?window=${window}&nfft=${nfft}`;
+  const res = await dspFetch(url);
   if (!res.ok) throw new Error('Failed to fetch spectrum');
   return res.json();
 }
 
 export async function getWaterfall(sessionId, nperseg = 256) {
-  const res = await dspFetch(`/api/analyze/waterfall/${sessionId}?nperseg=${nperseg}`);
+  const url = sessionId
+    ? `/api/analyze/waterfall?session_id=${encodeURIComponent(sessionId)}&nperseg=${nperseg}`
+    : `/api/analyze/waterfall?nperseg=${nperseg}`;
+  const res = await dspFetch(url);
   if (!res.ok) throw new Error('Failed to fetch waterfall');
   return res.json();
 }
 
 export async function getParameters(sessionId) {
-  const res = await dspFetch(`/api/analyze/parameters/${sessionId}`);
+  const url = sessionId ? `/api/analyze/parameters?session_id=${encodeURIComponent(sessionId)}` : '/api/analyze/parameters';
+  const res = await dspFetch(url);
   if (!res.ok) throw new Error('Failed to fetch parameters');
   return res.json();
 }
 
 export async function getConstellation(sessionId) {
-  const res = await dspFetch(`/api/analyze/constellation/${sessionId}`);
+  const url = sessionId ? `/api/analyze/constellation?session_id=${encodeURIComponent(sessionId)}` : '/api/analyze/constellation';
+  const res = await dspFetch(url);
   if (!res.ok) throw new Error('Failed to fetch constellation');
   return res.json();
 }
 
 export async function classifyModulation(sessionId) {
-  const res = await dspFetch(`/api/classify/modulation/${sessionId}`, { method: 'POST' });
+  const url = sessionId ? `/api/classify/modulation?session_id=${encodeURIComponent(sessionId)}` : '/api/classify/modulation';
+  const res = await dspFetch(url, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to classify modulation');
   return res.json();
 }
@@ -318,7 +328,8 @@ export async function demodulate(sessionId, params) {
 }
 
 export async function getBitstream(sessionId) {
-  const res = await dspFetch(`/api/bitstream/${sessionId}`);
+  const url = sessionId ? `/api/bitstream?session_id=${encodeURIComponent(sessionId)}` : '/api/bitstream';
+  const res = await dspFetch(url);
   if (!res.ok) throw new Error('Failed to fetch bitstream');
   return res.json();
 }
@@ -380,7 +391,8 @@ export async function correlate(bitsA, bitsB = null, syncPattern = null, session
 }
 
 export async function getReport(sessionId) {
-  const res = await dspFetch(`/api/report/${sessionId}`);
+  const url = sessionId ? `/api/report?session_id=${encodeURIComponent(sessionId)}` : '/api/report';
+  const res = await dspFetch(url);
   if (!res.ok) throw new Error('Failed to fetch report');
   return res.json();
 }
