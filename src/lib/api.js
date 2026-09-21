@@ -94,6 +94,21 @@ function mapDspEndpoint(endpoint) {
   if (endpoint.startsWith('/api/fec-decode')) return '/api/dsp?action=fec_decode';
   if (endpoint.startsWith('/api/correlate')) return '/api/dsp?action=correlate';
 
+  if (endpoint.startsWith('/api/bitstream')) {
+    const [, qs] = endpoint.split('?');
+    const sidMatch = (qs || '').match(/session_id=([^&]+)/);
+    const sid = sidMatch ? sidMatch[1] : (endpoint.split('/')[3] || '');
+    return `/api/dsp?action=bitstream${sid ? `&session_id=${sid}` : ''}`;
+  }
+
+  if (endpoint.startsWith('/api/report')) {
+    // /api/report?session_id=... or /api/report/SID
+    const [, qs] = endpoint.split('?');
+    const sidMatch = (qs || '').match(/session_id=([^&]+)/);
+    const sid = sidMatch ? sidMatch[1] : (endpoint.split('/')[3] || '');
+    return `/api/dsp?action=report${sid ? `&session_id=${sid}` : ''}`;
+  }
+
   const [pathname, queryString] = endpoint.split('?');
   const parts = pathname.split('/').filter(Boolean);
 

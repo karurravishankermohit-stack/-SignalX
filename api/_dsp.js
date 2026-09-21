@@ -158,7 +158,20 @@ function computeWaterfall(iArr, qArr, sampleRate, slices = 24) {
     time.push(Number((s * 0.05).toFixed(3)));
   }
 
+  // Build frequency axis (Hz), centered at 0
+  const freqStep = sampleRate / sliceLen;
+  const freqs = [];
+  for (let k = 0; k < sliceLen; k++) {
+    freqs.push(Number(((k - sliceLen / 2) * freqStep).toFixed(1)));
+  }
+
   return {
+    intensities: matrix,   // required by WaterfallPage.jsx Plotly heatmap
+    times: time,           // required by WaterfallPage.jsx (y-axis)
+    freqs,                 // required by WaterfallPage.jsx (x-axis)
+    n_time_bins: slices,   // shown in Time Bins readout
+    n_freq_bins: sliceLen, // shown in Frequency Bins readout
+    // Legacy aliases kept for any other consumers
     time,
     data: matrix,
     nperseg: sliceLen,
